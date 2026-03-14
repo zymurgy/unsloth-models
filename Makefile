@@ -14,7 +14,7 @@ ifeq ($(UNAME_S),Darwin)
     CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=ON
 else
     # Linux (Debian/CUDA) settings
-    SETUP_CMD   = sudo apt-get update && sudo apt-get install pciutils build-essential cmake curl libcurl4-openssl-dev python3 -y
+    SETUP_CMD   = apt-get update && apt-get install pciutils build-essential cmake curl libcurl4-openssl-dev python3 python3-venv -y
     CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON
 endif
 
@@ -22,6 +22,8 @@ endif
 BASE_MODELS_DIR := $(shell test -d /models && echo /models || echo ./models)
 
 LLAMA_PATH ?= ./llama.cpp
+VENV_DIR   ?= .venv
+HF_CLI     ?= $(VENV_DIR)/bin/hf
 
 # Fallbacks in case config.mk hasn't been generated yet
 REPO        ?= unsloth/Qwen3.5-122B-A10B-GGUF
@@ -41,8 +43,7 @@ PRES_PEN    ?= 0.0
 EXTRA_ARGS  ?= 
 
 # Dynamically find the first .gguf file matching the quant in the downloaded dir.
-# llama.cpp will automatically find the rest of the shards if it's a split model.
-MODEL_FILE = $(shell find $(LOCAL_DIR) -name "*$(QUANT)*.gguf" | sort | head -n 1)
+MODEL_FILE = $(shell find $(LOCAL_DIR) -name "*$(QUANT)*.gguf" 2>/dev/null | sort | head -n 1)
 
 # ==========================================
 # 2. Inference Parameters
@@ -53,7 +54,7 @@ CTX_ARGS    = --ctx-size $(CTX_SIZE)
 CLI_ARGS    = --prio 2
 BENCH_ARGS  ?= -p 512,1024 -n 128,256
 
-# Dynamically generated parameters from config.mk (Now includes PRES_PEN and EXTRA_ARGS)
+# Dynamically generated parameters from config.mk
 ACTIVE_PARAMS = --temp $(TEMP) --top-p $(TOP_P) --top-k $(TOP_K) --min-p $(MIN_P) --repeat-penalty $(REP_PENALTY) --presence-penalty $(PRES_PEN) $(EXTRA_ARGS)
 
 # ==========================================
@@ -90,8 +91,12 @@ config:
 
 # --- Execution Targets ---
 download:
+	@if [ ! -d "$(VENV_DIR)" ]; then \
+		echo "ERROR: Virtual environment not found. Run 'make setup' first."; \
+		exit 1; \
+	fi
 	@echo "Downloading $(QUANT) from $(REPO) to $(LOCAL_DIR)..."
-	env HF_HUB_ENABLE_HF_TRANSFER=1 hf download $(REPO) --include $(INCLUDE) --local-dir $(LOCAL_DIR)
+	env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include $(INCLUDE) --local-dir $(LOCAL_DIR)
 
 run-cli: check-model
 	@echo "Starting CLI using $(MODEL_FILE) in $(MODE) mode..."
@@ -107,7 +112,14 @@ run-bench: check-model
 
 # --- Build Targets ---
 setup:
+	@echo "Installing system dependencies..."
 	$(SETUP_CMD)
+	@echo "Setting up Python virtual environment in $(VENV_DIR)..."
+	python3 -m venv $(VENV_DIR)
+	@echo "Installing huggingface_hub and hf_transfer for faster downloads..."
+	$(VENV_DIR)/bin/pip install --upgrade pip
+	$(VENV_DIR)/bin/pip install huggingface_hub hf_transfer
+	@echo "Setup complete!"
 
 build:
 	@if [ ! -d "llama.cpp" ]; then git clone https://github.com/ggml-org/llama.cpp; fi
@@ -117,4 +129,4 @@ build:
 	cp llama.cpp/build/bin/llama-* llama.cpp/
 
 clean:
-	rm -rf llama.cpp/build config.mk
+	rm -rf llama.cpp/build config.mk $(VENV_DIR)
