@@ -4,6 +4,16 @@
 -include config.mk
 
 # ==========================================
+# Detect if we are running as root
+# ==========================================
+IS_ROOT := $(shell [ $$(id -u) -eq 0 ] && echo true || echo false)
+SUDO    =
+ifeq ($(filter true,$(IS_ROOT)),true)
+else
+	SUDO := sudo
+endif
+
+# ==========================================
 # Build & OS Detection
 # ==========================================
 UNAME_S := $(shell uname -s)
@@ -14,7 +24,7 @@ ifeq ($(UNAME_S),Darwin)
     CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=ON
 else
     # Linux (Debian/CUDA) settings
-    SETUP_CMD   = apt-get update && apt-get install pciutils build-essential cmake curl libcurl4-openssl-dev python3 python3-venv -y
+    SETUP_CMD   = $(SUDO) apt-get update && $(SUDO) apt-get install pciutils build-essential cmake curl libcurl4-openssl-dev python3 python3-venv -y
     CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON
 endif
 
