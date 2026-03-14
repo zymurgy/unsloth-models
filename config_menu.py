@@ -39,14 +39,12 @@ CONTEXT_SIZES = [
 ]
 
 # --- Sampling Parameters & Modes ---
-# Fallback modes if a model doesn't have custom ones
 DEFAULT_MODES = {
     "Thinking":     {"temp": 0.6, "top_p": 0.90, "top_k": 40, "min_p": 0.05, "rep_pen": 1.1,  "pres_pen": 0.0, "extra": ""},
     "Coding":       {"temp": 0.2, "top_p": 0.95, "top_k": 20, "min_p": 0.05, "rep_pen": 1.0,  "pres_pen": 0.0, "extra": ""},
     "Non-Thinking": {"temp": 0.8, "top_p": 0.95, "top_k": 50, "min_p": 0.10, "rep_pen": 1.15, "pres_pen": 0.0, "extra": ""}
 }
 
-# GLM 4.7 Flash Specific Modes
 GLM_4_7_MODES = {
     "General Tasks": {
         "temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0, "pres_pen": 0.0, "extra": ""
@@ -56,7 +54,6 @@ GLM_4_7_MODES = {
     }
 }
 
-# Nemotron 3 Specific Modes (Used by both Super and Nano)
 NEMOTRON_3_MODES = {
     "General Chat/Instruction": {
         "temp": 1.0, "top_p": 1.0, "top_k": 40, "min_p": 0.05, "rep_pen": 1.1, "pres_pen": 0.0, "extra": ""
@@ -66,7 +63,6 @@ NEMOTRON_3_MODES = {
     }
 }
 
-# Qwen3.5 Specific Hybrid Modes
 QWEN_3_5_MODES = {
     "Thinking - General Tasks": {
         "temp": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5,
@@ -86,7 +82,6 @@ QWEN_3_5_MODES = {
     }
 }
 
-# GPT OSS 20B Specific Modes
 GPT_OSS_MODES = {
     "Reasoning Effort: Low": {
         "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0,
@@ -102,8 +97,6 @@ GPT_OSS_MODES = {
     }
 }
 
-
-# Model-specific dictionaries. Maps model name -> its available modes.
 MODEL_MODES = {
     "GLM 4.7 Flash": GLM_4_7_MODES,
     "NVIDIA Nemotron 3 Super 120B": NEMOTRON_3_MODES,
@@ -117,13 +110,12 @@ MODEL_MODES = {
     }
 }
 
-# Automatically assign the 4 Qwen modes to all Qwen 3.5 models
 for model in MODELS:
     if "Qwen3.5" in model["name"]:
         MODEL_MODES[model["name"]] = QWEN_3_5_MODES
 
-
-def draw_menu(stdscr, title, options, current_row):
+# --- UI Functions ---
+def draw_menu(stdscr, title, options, current_row, show_back):
     stdscr.clear()
     stdscr.addstr(0, 0, title, curses.A_BOLD | curses.A_UNDERLINE)
     for idx, option in enumerate(options):
@@ -135,53 +127,93 @@ def draw_menu(stdscr, title, options, current_row):
             stdscr.attroff(curses.color_pair(1))
         else:
             stdscr.addstr(y, x, f"  {option}")
+            
+    # Draw Footer
+    footer_y = len(options) + 4
+    stdscr.addstr(footer_y, 0, "[ENTER] Select  [UP/DOWN] Navigate", curses.A_DIM)
+    if show_back:
+        stdscr.addstr(footer_y + 1, 0, "[B] Back        [Q / ESC] Quit without saving", curses.A_DIM)
+    else:
+        stdscr.addstr(footer_y + 1, 0, "[Q / ESC] Quit without saving", curses.A_DIM)
+        
     stdscr.refresh()
 
-def select_from_list(stdscr, title, options):
+def select_from_list(stdscr, title, options, show_back=True):
     curses.curs_set(0)
     curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
     current_row = 0
 
     while True:
-        draw_menu(stdscr, title, options, current_row)
+        draw_menu(stdscr, title, options, current_row, show_back)
         key = stdscr.getch()
 
         if key == curses.KEY_UP and current_row > 0:
             current_row -= 1
         elif key == curses.KEY_DOWN and current_row < len(options) - 1:
             current_row += 1
-        elif key == curses.KEY_ENTER or key in [10, 13]:
+        elif key in [curses.KEY_ENTER, 10, 13]:
             return current_row
+        elif key in [ord('b'), ord('B'), curses.KEY_BACKSPACE, 127, 8] and show_back:
+            return "BACK"
+        elif key in [ord('q'), ord('Q'), 27]: # 27 is the ESC key
+            return "EXIT"
 
 def main(stdscr):
-    # 1. Select Model
-    model_names = [m["name"] for m in MODELS]
-    selected_model_idx = select_from_list(stdscr, "1/5: Select a Model:", model_names)
-    selected_model = MODELS[selected_model_idx]
+    step = 0
+    
+    # State variables to hold selections as we move forward/backward
+    selected_model = None
+    selected_bit = None
+    selected_quant = None
+    selected_ctx = None
+    selected_mode_name = None
+    gen_params = None
 
-    # 2. Select Bit-Depth Category
-    bit_depths = list(QUANT_GROUPS.keys())
-    selected_bit_idx = select_from_list(stdscr, f"2/5: Select Bit-Depth for {selected_model['name']}:", bit_depths)
-    selected_bit = bit_depths[selected_bit_idx]
+    # State Machine Loop
+    while step < 5:
+        if step == 0:
+            model_names = [m["name"] for m in MODELS]
+            res = select_from_list(stdscr, "1/5: Select a Model:", model_names, show_back=False)
+            if res == "EXIT": return
+            selected_model = MODELS[res]
+            step += 1
 
-    # 3. Select Specific Quantization
-    specific_quants = QUANT_GROUPS[selected_bit]
-    selected_quant_idx = select_from_list(stdscr, f"3/5: Select Specific {selected_bit} Quantization:", specific_quants)
-    selected_quant = specific_quants[selected_quant_idx]
+        elif step == 1:
+            bit_depths = list(QUANT_GROUPS.keys())
+            res = select_from_list(stdscr, f"2/5: Select Bit-Depth for {selected_model['name']}:", bit_depths)
+            if res == "EXIT": return
+            if res == "BACK": step -= 1; continue
+            selected_bit = bit_depths[res]
+            step += 1
 
-    # 4. Select Context Size
-    selected_ctx_idx = select_from_list(stdscr, "4/5: Select Context Size:", CONTEXT_SIZES)
-    selected_ctx = CONTEXT_SIZES[selected_ctx_idx]
+        elif step == 2:
+            specific_quants = QUANT_GROUPS[selected_bit]
+            res = select_from_list(stdscr, f"3/5: Select Specific {selected_bit} Quantization:", specific_quants)
+            if res == "EXIT": return
+            if res == "BACK": step -= 1; continue
+            selected_quant = specific_quants[res]
+            step += 1
 
-    # 5. Select Mode (Dynamic based on selected model!)
-    available_modes_dict = MODEL_MODES.get(selected_model["name"], DEFAULT_MODES)
-    mode_names = list(available_modes_dict.keys())
-    selected_mode_idx = select_from_list(stdscr, f"5/5: Select Mode for {selected_model['name']}:", mode_names)
+        elif step == 3:
+            res = select_from_list(stdscr, "4/5: Select Context Size:", CONTEXT_SIZES)
+            if res == "EXIT": return
+            if res == "BACK": step -= 1; continue
+            selected_ctx = CONTEXT_SIZES[res]
+            step += 1
 
-    selected_mode_name = mode_names[selected_mode_idx]
-    gen_params = available_modes_dict[selected_mode_name]
+        elif step == 4:
+            available_modes_dict = MODEL_MODES.get(selected_model["name"], DEFAULT_MODES)
+            mode_names = list(available_modes_dict.keys())
+            res = select_from_list(stdscr, f"5/5: Select Mode for {selected_model['name']}:", mode_names)
+            if res == "EXIT": return
+            if res == "BACK": step -= 1; continue
+            
+            selected_mode_name = mode_names[res]
+            gen_params = available_modes_dict[selected_mode_name]
+            step += 1 # Breaks the while loop
 
-    # 6. Write to Makefile Config
+    # --- Step 6: Write to Makefile Config ---
+    # (This code is only reached if the user successfully navigates all 5 steps)
     base_models_dir = "/models" if os.path.isdir("/models") else "./models"
 
     with open("config.mk", "w") as f:
@@ -201,6 +233,7 @@ def main(stdscr):
         f.write(f"PRES_PEN = {gen_params.get('pres_pen', 0.0)}\n")
         f.write(f"EXTRA_ARGS = {gen_params.get('extra', '')}\n")
 
+    # Display confirmation screen
     stdscr.clear()
     stdscr.addstr(0, 0, "Saved Configuration to config.mk!", curses.A_BOLD)
     stdscr.addstr(2, 0, f"Model   : {selected_model['name']}")
