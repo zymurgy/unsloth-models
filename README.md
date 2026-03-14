@@ -25,7 +25,6 @@ This tool eliminates the headache of manually hunting down Hugging Face URLs, gu
 **1. Install Dependencies & Virtual Environment**
 ```bash
 make setup
-
 ```
 
 *(Installs system packages, creates a `.venv`, and installs the Hugging Face CLI).*
@@ -34,7 +33,6 @@ make setup
 
 ```bash
 make build
-
 ```
 
 *(Clones the official `llama.cpp` repository and compiles it for your system's hardware).*
@@ -43,7 +41,6 @@ make build
 
 ```bash
 make config
-
 ```
 
 *(Opens the interactive menu. Use **Arrow Keys** to navigate, **Enter** to select, **B** to go back, and **Q/ESC** to quit).*
@@ -52,7 +49,6 @@ make config
 
 ```bash
 make download
-
 ```
 
 *(Downloads your selected GGUF file directly from Hugging Face).*
@@ -63,7 +59,6 @@ make download
 make run-server  # Starts the API server on port 8080 (0.0.0.0)
 # OR
 make run-cli     # Starts an interactive chat directly in your terminal
-
 ```
 
 ---
