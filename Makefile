@@ -3,9 +3,7 @@
 # ==========================================
 -include config.mk
 
-# ==========================================
-# Detect if we are running as root
-# ==========================================
+# Check if running as root
 IS_ROOT := $(shell [ $$(id -u) -eq 0 ] && echo true || echo false)
 SUDO    =
 ifeq ($(filter true,$(IS_ROOT)),true)
@@ -13,11 +11,8 @@ else
 	SUDO := sudo
 endif
 
-# ==========================================
-# Build & OS Detection
-# ==========================================
+# Detect OS
 UNAME_S := $(shell uname -s)
-
 ifeq ($(UNAME_S),Darwin)
     # macOS (Apple Silicon/Metal) settings
     SETUP_CMD   = brew update && brew install cmake curl python3
