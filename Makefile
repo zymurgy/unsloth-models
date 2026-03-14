@@ -6,12 +6,19 @@
 LLAMA_PATH ?= ./llama.cpp
 
 # Fallbacks in case config.mk hasn't been generated yet
-REPO       ?= unsloth/Qwen3.5-122B-A10B-GGUF
-QUANT      ?= Q4_K_M
-INCLUDE    ?= "*$(QUANT)*"
-LOCAL_DIR  ?= /models/$(REPO)
-MODE       ?= non-thinking
-CTX_SIZE   ?= 16384
+REPO        ?= unsloth/Qwen3.5-122B-A10B-GGUF
+QUANT       ?= Q4_K_M
+INCLUDE     ?= "*$(QUANT)*"
+LOCAL_DIR   ?= /models/$(REPO)
+MODE        ?= non-thinking
+CTX_SIZE    ?= 16384
+
+# Parameter Fallbacks
+TEMP        ?= 0.8
+TOP_P       ?= 0.95
+TOP_K       ?= 50
+MIN_P       ?= 0.10
+REP_PENALTY ?= 1.15
 
 # Dynamically find the first .gguf file matching the quant in the downloaded dir.
 # llama.cpp will automatically find the rest of the shards if it's a split model.
@@ -21,22 +28,13 @@ MODEL_FILE = $(shell find $(LOCAL_DIR) -name "*$(QUANT)*.gguf" | sort | head -n 
 # 2. Inference Parameters
 # ==========================================
 GPU_ARGS    = --n-gpu-layers 99
-CTX_ARGS   = --ctx-size $(CTX_SIZE)
+CTX_ARGS    = --ctx-size $(CTX_SIZE)
 
 CLI_ARGS    = --seed 3407 --prio 2
 BENCH_ARGS  ?= -p 512,1024 -n 128,256
 
-PARAMS_THINKING     = --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.00
-PARAMS_CODING       = --temp 0.2 --top-p 0.95 --top-k 40 --min-p 0.05
-PARAMS_NON_THINKING = --temp 0.6 --top-p 0.95
-
-ifeq ($(MODE), coding)
-    ACTIVE_PARAMS = $(PARAMS_CODING)
-else ifeq ($(MODE), thinking)
-    ACTIVE_PARAMS = $(PARAMS_THINKING)
-else
-    ACTIVE_PARAMS = $(PARAMS_NON_THINKING)
-endif
+# Dynamically generated parameters from config.mk
+ACTIVE_PARAMS = --temp $(TEMP) --top-p $(TOP_P) --top-k $(TOP_K) --min-p $(MIN_P) --repeat-penalty $(REP_PENALTY)
 
 # ==========================================
 # 3. Targets
@@ -56,6 +54,7 @@ help:
 	@echo "  make run-bench  - Run performance benchmarks"
 	@echo "====================================================================="
 	@echo "Current Config: $(REPO) | Quant: $(QUANT) | Mode: $(MODE)"
+	@echo "Params: Temp $(TEMP), Top-P $(TOP_P), Top-K $(TOP_K), Min-P $(MIN_P), RepPen $(REP_PENALTY)"
 
 # --- Safeguard ---
 check-model:

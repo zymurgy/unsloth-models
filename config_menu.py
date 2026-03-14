@@ -16,7 +16,6 @@ MODELS = [
     {"name": "Tri 21B Think", "repo": "mykor/Tri-21B-Think-GGUF"},
 ]
 
-# Grouped by bit-depth according to the matrix
 QUANT_GROUPS = {
     "1-bit": ["UD-IQ1_S", "UD-TQ1_0", "UD-IQ1_M"],
     "2-bit": ["UD-IQ2_XXS", "Q2_K", "UD-IQ2_M", "Q2_K_L", "UD-Q2_K_XL"],
@@ -33,16 +32,35 @@ QUANT_GROUPS = {
 }
 
 CONTEXT_SIZES = [
-    "4096",
-    "8192",
-    "16384",
-    "32768",
-    "65536",
-    "131072",
-    "262144"
+    "4096", "8192", "16384", "32768", "65536", "131072", "262144"
 ]
 
 MODES = ["thinking", "coding", "non-thinking"]
+
+# --- Sampling Parameters ---
+# Base parameters applied if a model doesn't have a specific override
+DEFAULT_PARAMS = {
+    "thinking":     {"temp": 0.6, "top_p": 0.90, "top_k": 40, "min_p": 0.05, "rep_pen": 1.1},
+    "coding":       {"temp": 0.2, "top_p": 0.95, "top_k": 20, "min_p": 0.05, "rep_pen": 1.0},
+    "non-thinking": {"temp": 0.8, "top_p": 0.95, "top_k": 50, "min_p": 0.10, "rep_pen": 1.15}
+}
+
+# Model-specific overrides. You only need to define the modes you want to change for a specific model.
+MODEL_PARAMS = {
+    "Qwen3 Coder Next": {
+        "coding": {"temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0},
+    },
+    "Tri 21B Think": {
+        "thinking": {"temp": 0.5, "top_p": 0.85, "top_k": 30, "min_p": 0.02, "rep_pen": 1.05},
+    }
+}
+
+def get_generation_params(model_name, mode):
+    """Fetches generation params, prioritizing model-specific overrides over defaults."""
+    params = DEFAULT_PARAMS.get(mode, DEFAULT_PARAMS["non-thinking"]).copy()
+    if model_name in MODEL_PARAMS and mode in MODEL_PARAMS[model_name]:
+        params.update(MODEL_PARAMS[model_name][mode])
+    return params
 
 def draw_menu(stdscr, title, options, current_row):
     stdscr.clear()
@@ -98,15 +116,23 @@ def main(stdscr):
     selected_mode_idx = select_from_list(stdscr, "5/5: Select a Parameter Mode:", MODES)
     selected_mode = MODES[selected_mode_idx]
 
+    # Look up specific generation parameters
+    gen_params = get_generation_params(selected_model["name"], selected_mode)
+
     # 6. Write to Makefile Config
     with open("config.mk", "w") as f:
         f.write(f"REPO = {selected_model['repo']}\n")
         f.write(f"QUANT = {selected_quant}\n")
-        # Include flag uses wildcards so it catches both loose files and subdirectories
         f.write(f"INCLUDE = \"*{selected_quant}*\"\n")
         f.write(f"LOCAL_DIR = /models/{selected_model['repo']}\n")
         f.write(f"CTX_SIZE = {selected_ctx}\n")
         f.write(f"MODE = {selected_mode}\n")
+        # Write generation parameters
+        f.write(f"TEMP = {gen_params['temp']}\n")
+        f.write(f"TOP_P = {gen_params['top_p']}\n")
+        f.write(f"TOP_K = {gen_params['top_k']}\n")
+        f.write(f"MIN_P = {gen_params['min_p']}\n")
+        f.write(f"REP_PENALTY = {gen_params['rep_pen']}\n")
 
     stdscr.clear()
     stdscr.addstr(0, 0, "Saved Configuration to config.mk!", curses.A_BOLD)
@@ -115,7 +141,12 @@ def main(stdscr):
     stdscr.addstr(4, 0, f"Quant   : {selected_quant}")
     stdscr.addstr(5, 0, f"Context : {selected_ctx}")
     stdscr.addstr(6, 0, f"Mode    : {selected_mode}")
-    stdscr.addstr(8, 0, "Press any key to exit and run 'make download' or 'make run-server'...")
+    
+    # Display the derived parameters
+    stdscr.addstr(8, 0, "Derived Parameters:", curses.A_UNDERLINE)
+    stdscr.addstr(9, 0, f"Temp: {gen_params['temp']} | Top-P: {gen_params['top_p']} | Top-K: {gen_params['top_k']} | Min-P: {gen_params['min_p']} | Rep-Pen: {gen_params['rep_pen']}")
+    
+    stdscr.addstr(11, 0, "Press any key to exit and run 'make download' or 'make run-server'...")
     stdscr.refresh()
     stdscr.getch()
 
