@@ -17,7 +17,6 @@ MODELS = [
     {"name": "Qwen3.5 122B-A10B", "repo": "unsloth/Qwen3.5-122B-A10B-GGUF"},
     {"name": "Qwen3.5 397B-A17B", "repo": "unsloth/Qwen3.5-397B-A17B-GGUF"},
     {"name": "Qwen3 Coder Next", "repo": "unsloth/Qwen3-Coder-Next-GGUF"},
-    {"name": "Tri 21B Think", "repo": "mykor/Tri-21B-Think-GGUF"},
 ]
 
 QUANT_GROUPS = {
@@ -114,11 +113,6 @@ MODEL_MODES = {
     "Qwen3 Coder Next": {
         "Coding": {"temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0, "pres_pen": 0.0, "extra": ""},
         "Thinking": DEFAULT_MODES["Thinking"],
-        "Non-Thinking": DEFAULT_MODES["Non-Thinking"],
-    },
-    "Tri 21B Think": {
-        "Thinking": {"temp": 0.5, "top_p": 0.85, "top_k": 30, "min_p": 0.02, "rep_pen": 1.05, "pres_pen": 0.0, "extra": ""},
-        "Coding": DEFAULT_MODES["Coding"],
         "Non-Thinking": DEFAULT_MODES["Non-Thinking"],
     }
 }
