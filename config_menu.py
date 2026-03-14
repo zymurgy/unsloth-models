@@ -7,6 +7,7 @@ MODELS = [
     {"name": "GPT OSS 20B", "repo": "unsloth/gpt-oss-20b-GGUF"},
     {"name": "GPT OSS 120B", "repo": "unsloth/gpt-oss-120b-GGUF"},
     {"name": "NVIDIA Nemotron 3 Super 120B", "repo": "unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF"},
+    {"name": "NVIDIA Nemotron 3 Nano 30B", "repo": "unsloth/Nemotron-3-Nano-30B-A3B-GGUF"},
     {"name": "Qwen3.5 0.8B", "repo": "unsloth/Qwen3.5-0.8B-GGUF"},
     {"name": "Qwen3.5 2B", "repo": "unsloth/Qwen3.5-2B-GGUF"},
     {"name": "Qwen3.5 4B", "repo": "unsloth/Qwen3.5-4B-GGUF"},
@@ -56,7 +57,7 @@ GLM_4_7_MODES = {
     }
 }
 
-# Nemotron 3 Super Specific Modes
+# Nemotron 3 Specific Modes (Used by both Super and Nano)
 NEMOTRON_3_MODES = {
     "General Chat/Instruction": {
         "temp": 1.0, "top_p": 1.0, "top_k": 40, "min_p": 0.05, "rep_pen": 1.1, "pres_pen": 0.0, "extra": ""
@@ -107,6 +108,7 @@ GPT_OSS_MODES = {
 MODEL_MODES = {
     "GLM 4.7 Flash": GLM_4_7_MODES,
     "NVIDIA Nemotron 3 Super 120B": NEMOTRON_3_MODES,
+    "NVIDIA Nemotron 3 Nano 30B": NEMOTRON_3_MODES,
     "GPT OSS 20B": GPT_OSS_MODES,
     "GPT OSS 120B": GPT_OSS_MODES,
     "Qwen3 Coder Next": {
