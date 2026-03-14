@@ -46,6 +46,16 @@ DEFAULT_MODES = {
     "Non-Thinking": {"temp": 0.8, "top_p": 0.95, "top_k": 50, "min_p": 0.10, "rep_pen": 1.15, "pres_pen": 0.0, "extra": ""}
 }
 
+# GLM 4.7 Flash Specific Modes
+GLM_4_7_MODES = {
+    "General Tasks": {
+        "temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0, "pres_pen": 0.0, "extra": ""
+    },
+    "Tool-calling & SWE Bench": {
+        "temp": 0.7, "top_p": 1.0, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0, "pres_pen": 0.0, "extra": ""
+    }
+}
+
 # Qwen3.5 Specific Hybrid Modes
 QWEN_3_5_MODES = {
     "Thinking - General Tasks": {
@@ -69,15 +79,15 @@ QWEN_3_5_MODES = {
 # GPT OSS 20B Specific Modes
 GPT_OSS_MODES = {
     "Reasoning Effort: Low": {
-        "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0, 
-        "extra": "" # Add custom kwargs or system prompt here if needed
+        "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0,
+        "extra": "" 
     },
     "Reasoning Effort: Medium": {
-        "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0, 
+        "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0,
         "extra": ""
     },
     "Reasoning Effort: High": {
-        "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0, 
+        "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0,
         "extra": ""
     }
 }
@@ -85,11 +95,7 @@ GPT_OSS_MODES = {
 
 # Model-specific dictionaries. Maps model name -> its available modes.
 MODEL_MODES = {
-    "GLM 4.7 Flash": {
-        "Thinking": {"temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0, "pres_pen": 0.0, "extra": ""},
-        "Coding": DEFAULT_MODES["Coding"],
-        "Non-Thinking": DEFAULT_MODES["Non-Thinking"],
-    },
+    "GLM 4.7 Flash": GLM_4_7_MODES,
     "GPT OSS 20B": GPT_OSS_MODES,
     "GPT OSS 120B": GPT_OSS_MODES,
     "Qwen3 Coder Next": {
@@ -197,7 +203,7 @@ def main(stdscr):
     stdscr.addstr(6, 0, f"Mode    : {selected_mode_name}")
 
     stdscr.addstr(8, 0, "Derived Parameters:", curses.A_UNDERLINE)
-    stdscr.addstr(9, 0, f"Temp: {gen_params['temp']} | Top-P: {gen_params['top_p']} | Pres-Pen: {gen_params['pres_pen']}")
+    stdscr.addstr(9, 0, f"Temp: {gen_params['temp']} | Top-P: {gen_params['top_p']} | Min-P: {gen_params['min_p']} | Rep-Pen: {gen_params['rep_pen']}")
     if gen_params.get("extra"):
         stdscr.addstr(10, 0, f"Extra: {gen_params['extra']}")
 
