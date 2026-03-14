@@ -4,6 +4,8 @@ import os
 # --- Configuration Data ---
 MODELS = [
     {"name": "GLM 4.7 Flash", "repo": "unsloth/GLM-4.7-Flash-GGUF"},
+    {"name": "GPT OSS 20B", "repo": "unsloth/gpt-oss-20b-GGUF"},
+    {"name": "GPT OSS 120B", "repo": "unsloth/gpt-oss-120b-GGUF"},
     {"name": "NVIDIA Nemotron 3 Super 120B", "repo": "unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF"},
     {"name": "Qwen3.5 0.8B", "repo": "unsloth/Qwen3.5-0.8B-GGUF"},
     {"name": "Qwen3.5 2B", "repo": "unsloth/Qwen3.5-2B-GGUF"},
@@ -29,7 +31,7 @@ QUANT_GROUPS = {
     "5-bit": ["Q5_K_S", "UD-Q5_K_S", "Q5_K_M", "UD-Q5_K_M", "UD-Q5_K_XL"],
     "6-bit": ["Q6_K", "UD-Q6_K", "UD-Q6_K_XL"],
     "8-bit": ["Q8_0", "UD-Q8_K_XL"],
-    "16-bit": ["BF16"]
+    "16-bit": ["BF16", "F16"]
 }
 
 CONTEXT_SIZES = [
@@ -44,25 +46,42 @@ DEFAULT_MODES = {
     "Non-Thinking": {"temp": 0.8, "top_p": 0.95, "top_k": 50, "min_p": 0.10, "rep_pen": 1.15, "pres_pen": 0.0, "extra": ""}
 }
 
-# Qwen3.5 Specific Hybrid Modes (From Documentation)
+# Qwen3.5 Specific Hybrid Modes
 QWEN_3_5_MODES = {
     "Thinking - General Tasks": {
-        "temp": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5, 
+        "temp": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5,
         "extra": "--chat-template-kwargs '{\"enable_thinking\":true}'"
     },
     "Thinking - Precise Coding": {
-        "temp": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0, 
+        "temp": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0,
         "extra": "--chat-template-kwargs '{\"enable_thinking\":true}'"
     },
     "Instruct (Non-Thinking) - General": {
-        "temp": 0.7, "top_p": 0.80, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5, 
+        "temp": 0.7, "top_p": 0.80, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5,
         "extra": "--chat-template-kwargs '{\"enable_thinking\":false}'"
     },
     "Instruct (Non-Thinking) - Reasoning": {
-        "temp": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5, 
+        "temp": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5,
         "extra": "--chat-template-kwargs '{\"enable_thinking\":false}'"
     }
 }
+
+# GPT OSS 20B Specific Modes
+GPT_OSS_MODES = {
+    "Reasoning Effort: Low": {
+        "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0, 
+        "extra": "" # Add custom kwargs or system prompt here if needed
+    },
+    "Reasoning Effort: Medium": {
+        "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0, 
+        "extra": ""
+    },
+    "Reasoning Effort: High": {
+        "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0, 
+        "extra": ""
+    }
+}
+
 
 # Model-specific dictionaries. Maps model name -> its available modes.
 MODEL_MODES = {
@@ -71,6 +90,8 @@ MODEL_MODES = {
         "Coding": DEFAULT_MODES["Coding"],
         "Non-Thinking": DEFAULT_MODES["Non-Thinking"],
     },
+    "GPT OSS 20B": GPT_OSS_MODES,
+    "GPT OSS 120B": GPT_OSS_MODES,
     "Qwen3 Coder Next": {
         "Coding": {"temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0, "pres_pen": 0.0, "extra": ""},
         "Thinking": DEFAULT_MODES["Thinking"],
@@ -143,7 +164,7 @@ def main(stdscr):
     available_modes_dict = MODEL_MODES.get(selected_model["name"], DEFAULT_MODES)
     mode_names = list(available_modes_dict.keys())
     selected_mode_idx = select_from_list(stdscr, f"5/5: Select Mode for {selected_model['name']}:", mode_names)
-    
+
     selected_mode_name = mode_names[selected_mode_idx]
     gen_params = available_modes_dict[selected_mode_name]
 
@@ -157,7 +178,7 @@ def main(stdscr):
         f.write(f"LOCAL_DIR = {base_models_dir}/{selected_model['repo']}\n")
         f.write(f"CTX_SIZE = {selected_ctx}\n")
         f.write(f"MODE = {selected_mode_name}\n")
-        
+
         # Write generation parameters
         f.write(f"TEMP = {gen_params.get('temp', 0.8)}\n")
         f.write(f"TOP_P = {gen_params.get('top_p', 0.95)}\n")
@@ -174,7 +195,7 @@ def main(stdscr):
     stdscr.addstr(4, 0, f"Quant   : {selected_quant}")
     stdscr.addstr(5, 0, f"Context : {selected_ctx}")
     stdscr.addstr(6, 0, f"Mode    : {selected_mode_name}")
-    
+
     stdscr.addstr(8, 0, "Derived Parameters:", curses.A_UNDERLINE)
     stdscr.addstr(9, 0, f"Temp: {gen_params['temp']} | Top-P: {gen_params['top_p']} | Pres-Pen: {gen_params['pres_pen']}")
     if gen_params.get("extra"):
