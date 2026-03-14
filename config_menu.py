@@ -1,19 +1,26 @@
 import curses
+import os
 
 # --- Configuration Data ---
 MODELS = [
-    {
-        "name": "NVIDIA Nemotron 3 Super 120B",
-        "repo": "unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF",
-        "include": "UD-Q4_K_XL/*",
-        "file": "/models/unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF/UD-Q4_K_XL/NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q4_K_XL-00001-of-00003.gguf"
-    },
-    {
-        "name": "Qwen 3.5 122B",
-        "repo": "unsloth/Qwen3.5-122B-A10B-GGUF",
-        "include": "Q4_K_M/*",
-        "file": "/models/unsloth/Qwen3.5-122B-A10B-GGUF/Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00001-of-00003.gguf"
-    }
+    {"name": "Qwen3.5 0.8B", "repo": "unsloth/Qwen3.5-0.8B-GGUF"},
+    {"name": "Qwen3.5 2B", "repo": "unsloth/Qwen3.5-2B-GGUF"},
+    {"name": "Qwen3.5 4B", "repo": "unsloth/Qwen3.5-4B-GGUF"},
+    {"name": "Qwen3.5 9B", "repo": "unsloth/Qwen3.5-9B-GGUF"},
+    {"name": "Qwen3.5 27B", "repo": "unsloth/Qwen3.5-27B-GGUF"},
+    {"name": "Qwen3.5 35B-A3B", "repo": "unsloth/Qwen3.5-35B-A3B-GGUF"},
+    {"name": "Qwen3.5 122B-A10B", "repo": "unsloth/Qwen3.5-122B-A10B-GGUF"},
+    {"name": "Qwen3.5 397B-A17B", "repo": "unsloth/Qwen3.5-397B-A17B-GGUF"},
+    {"name": "NVIDIA Nemotron 3 Super 120B", "repo": "unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF"}
+]
+
+QUANTS = [
+    {"name": "Q3_K_M", "tag": "Q3_K_M"},
+    {"name": "Q4_K_M", "tag": "Q4_K_M"},
+    {"name": "UD-Q4_K_XL", "tag": "UD-Q4_K_XL"},
+    {"name": "Q6_K", "tag": "Q6_K"},
+    {"name": "Q8_0", "tag": "Q8_0"},
+    {"name": "BF16", "tag": "QF16"}
 ]
 
 MODES = ["thinking", "coding", "non-thinking"]
@@ -51,26 +58,32 @@ def select_from_list(stdscr, title, options):
 def main(stdscr):
     # 1. Select Model
     model_names = [m["name"] for m in MODELS]
-    selected_model_idx = select_from_list(stdscr, "Select a Model (UP/DOWN arrows, ENTER to select):", model_names)
+    selected_model_idx = select_from_list(stdscr, "Select a Model:", model_names)
     selected_model = MODELS[selected_model_idx]
 
-    # 2. Select Mode
+    # 2. Select Quantization
+    quant_names = [q["name"] for q in QUANTS]
+    selected_quant_idx = select_from_list(stdscr, f"Select Quantization for {selected_model['name']}:", quant_names)
+    selected_quant = QUANTS[selected_quant_idx]
+
+    # 3. Select Mode
     selected_mode_idx = select_from_list(stdscr, "Select a Parameter Mode:", MODES)
     selected_mode = MODES[selected_mode_idx]
 
-    # 3. Write to Makefile Config
+    # 4. Write to Makefile Config
     with open("config.mk", "w") as f:
         f.write(f"REPO = {selected_model['repo']}\n")
-        f.write(f"INCLUDE = {selected_model['include']}\n")
-        f.write(f"MODEL_FILE = {selected_model['file']}\n")
+        f.write(f"QUANT = {selected_quant['tag']}\n")
+        f.write(f"INCLUDE = \"*{selected_quant['tag']}*\"\n")
         f.write(f"LOCAL_DIR = /models/{selected_model['repo']}\n")
         f.write(f"MODE = {selected_mode}\n")
 
     stdscr.clear()
-    stdscr.addstr(0, 0, f"Saved Configuration to config.mk!", curses.A_BOLD)
-    stdscr.addstr(2, 0, f"Model: {selected_model['name']}")
-    stdscr.addstr(3, 0, f"Mode : {selected_mode}")
-    stdscr.addstr(5, 0, "Press any key to exit...")
+    stdscr.addstr(0, 0, "Saved Configuration to config.mk!", curses.A_BOLD)
+    stdscr.addstr(2, 0, f"Model : {selected_model['name']}")
+    stdscr.addstr(3, 0, f"Quant : {selected_quant['name']} ({selected_quant['tag']})")
+    stdscr.addstr(4, 0, f"Mode  : {selected_mode}")
+    stdscr.addstr(6, 0, "Press any key to exit...")
     stdscr.refresh()
     stdscr.getch()
 

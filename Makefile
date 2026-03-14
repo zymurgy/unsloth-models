@@ -1,23 +1,27 @@
 # ==========================================
 # 1. Configuration & Paths
 # ==========================================
-# This line pulls in the variables saved by the Python curses script.
-# The '-' prefix tells make not to throw an error if config.mk doesn't exist yet.
 -include config.mk
 
 LLAMA_PATH ?= ./llama.cpp
 
 # Fallbacks in case config.mk hasn't been generated yet
-REPO       ?= unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF
-INCLUDE    ?= "UD-Q4_K_XL/*"
+REPO       ?= unsloth/Qwen3.5-122B-A10B-GGUF
+QUANT      ?= Q4_K_M
+INCLUDE    ?= "*$(QUANT)*"
 LOCAL_DIR  ?= /models/$(REPO)
-MODEL_FILE ?= $(LOCAL_DIR)/UD-Q4_K_XL/NVIDIA-Nemotron-3-Super-120B-A12B-UD-Q4_K_XL-00001-of-00003.gguf
 MODE       ?= non-thinking
+
+# Dynamically find the first .gguf file matching the quant in the downloaded dir.
+# llama.cpp will automatically find the rest of the shards if it's a split model.
+MODEL_FILE = $(shell find $(LOCAL_DIR) -name "*$(QUANT)*.gguf" | sort | head -n 1)
 
 # ==========================================
 # 2. Inference Parameters
 # ==========================================
-COMMON_ARGS = --ctx-size 16384 --n-gpu-layers 99
+GPU_ARGS    = --n-gpu-layers 99
+CTX_ARGS    = --ctx-size 16384
+
 CLI_ARGS    = --seed 3407 --prio 2
 BENCH_ARGS  ?= -p 512,1024 -n 128,256
 
@@ -36,7 +40,7 @@ endif
 # ==========================================
 # 3. Targets
 # ==========================================
-.PHONY: help config download run-cli run-server run-bench setup build clean
+.PHONY: help config download run-cli run-server run-bench setup build clean check-model
 
 default: help
 
@@ -44,13 +48,21 @@ help:
 	@echo "====================================================================="
 	@echo "                        llama.cpp Makefile Helper                    "
 	@echo "====================================================================="
-	@echo "  make config   - Open the Curses UI to select Model and Mode <--"
-	@echo "  make download - Download the configured model"
-	@echo "  make run-cli  - Run the configured model in CLI mode"
-	@echo "  make run-server- Run the configured model as an API server"
-	@echo "  make run-bench- Run performance benchmarks"
+	@echo "  make config     - Open the Curses UI to configure settings <--"
+	@echo "  make download   - Download the configured model & quant"
+	@echo "  make run-cli    - Run the configured model in CLI mode"
+	@echo "  make run-server - Run the configured model as an API server"
+	@echo "  make run-bench  - Run performance benchmarks"
 	@echo "====================================================================="
-	@echo "Current Config: $(REPO) | Mode: $(MODE)"
+	@echo "Current Config: $(REPO) | Quant: $(QUANT) | Mode: $(MODE)"
+
+# --- Safeguard ---
+check-model:
+	@if [ -z "$(MODEL_FILE)" ]; then \
+		echo "ERROR: Model file not found in $(LOCAL_DIR)."; \
+		echo "Please run 'make download' first."; \
+		exit 1; \
+	fi
 
 # --- UI Target ---
 config:
@@ -58,20 +70,20 @@ config:
 
 # --- Execution Targets ---
 download:
-	@echo "Downloading $(REPO) to $(LOCAL_DIR)..."
-	huggingface-cli download $(REPO) --include $(INCLUDE) --local-dir $(LOCAL_DIR)
+	@echo "Downloading $(QUANT) from $(REPO) to $(LOCAL_DIR)..."
+	env HF_HUB_ENABLE_HF_TRANSFER=1 hf download $(REPO) --include $(INCLUDE) --local-dir $(LOCAL_DIR)
 
-run-cli:
-	@echo "Starting CLI in $(MODE) mode..."
-	$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) $(COMMON_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS)
+run-cli: check-model
+	@echo "Starting CLI using $(MODEL_FILE) in $(MODE) mode..."
+	$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS)
 
-run-server:
-	@echo "Starting Server in $(MODE) mode..."
-	$(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --host 0.0.0.0 $(COMMON_ARGS) $(ACTIVE_PARAMS)
+run-server: check-model
+	@echo "Starting Server using $(MODEL_FILE) in $(MODE) mode..."
+	$(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS)
 
-run-bench:
+run-bench: check-model
 	@echo "Running Benchmarks on $(MODEL_FILE)..."
-	$(LLAMA_PATH)/llama-bench -m $(MODEL_FILE) $(COMMON_ARGS) $(BENCH_ARGS)
+	$(LLAMA_PATH)/llama-bench -m $(MODEL_FILE) $(GPU_ARGS) $(BENCH_ARGS)
 
 # --- Build Targets ---
 setup:
