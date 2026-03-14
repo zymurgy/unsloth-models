@@ -3,6 +3,21 @@
 # ==========================================
 -include config.mk
 
+# ==========================================
+# Build & OS Detection
+# ==========================================
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Darwin)
+    # macOS (Apple Silicon/Metal) settings
+    SETUP_CMD   = brew update && brew install cmake curl python3
+    CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=ON
+else
+    # Linux (Debian/CUDA) settings
+    SETUP_CMD   = sudo apt-get update && sudo apt-get install pciutils build-essential cmake curl libcurl4-openssl-dev python3 -y
+    CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON
+endif
+
 LLAMA_PATH ?= ./llama.cpp
 
 # Fallbacks in case config.mk hasn't been generated yet
@@ -88,12 +103,11 @@ run-bench: check-model
 
 # --- Build Targets ---
 setup:
-	sudo apt-get update
-	sudo apt-get install pciutils build-essential cmake curl libcurl4-openssl-dev python3 -y
+	$(SETUP_CMD)
 
 build:
 	@if [ ! -d "llama.cpp" ]; then git clone https://github.com/ggml-org/llama.cpp; fi
-	cmake llama.cpp -B llama.cpp/build -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON
+	cmake llama.cpp -B llama.cpp/build $(CMAKE_FLAGS)
 	cmake --build llama.cpp/build --config Release -j --clean-first \
 		--target llama-cli llama-mtmd-cli llama-server llama-gguf-split llama-bench
 	cp llama.cpp/build/bin/llama-* llama.cpp/
