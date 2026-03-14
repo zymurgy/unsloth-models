@@ -3,6 +3,7 @@ import os
 
 # --- Configuration Data ---
 MODELS = [
+    {"name": "GLM 4.7 Flash", "repo": "unsloth/GLM-4.7-Flash-GGUF"},
     {"name": "NVIDIA Nemotron 3 Super 120B", "repo": "unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF"},
     {"name": "Qwen3.5 0.8B", "repo": "unsloth/Qwen3.5-0.8B-GGUF"},
     {"name": "Qwen3.5 2B", "repo": "unsloth/Qwen3.5-2B-GGUF"},
@@ -47,6 +48,9 @@ DEFAULT_PARAMS = {
 
 # Model-specific overrides. You only need to define the modes you want to change for a specific model.
 MODEL_PARAMS = {
+    "GLM 4.7 Flash": {
+        "thinking": {"temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0},
+    },
     "Qwen3 Coder Next": {
         "coding": {"temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0},
     },

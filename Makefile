@@ -30,7 +30,8 @@ MODEL_FILE = $(shell find $(LOCAL_DIR) -name "*$(QUANT)*.gguf" | sort | head -n 
 GPU_ARGS    = --n-gpu-layers 99
 CTX_ARGS    = --ctx-size $(CTX_SIZE)
 
-CLI_ARGS    = --seed 3407 --prio 2
+# Removed --seed 3407 so generation is naturally varied
+CLI_ARGS    = --prio 2
 BENCH_ARGS  ?= -p 512,1024 -n 128,256
 
 # Dynamically generated parameters from config.mk
@@ -79,7 +80,7 @@ run-cli: check-model
 
 run-server: check-model
 	@echo "Starting Server using $(MODEL_FILE) in $(MODE) mode..."
-	$(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS)
+	$(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --alias "$(REPO)" --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS)
 
 run-bench: check-model
 	@echo "Running Benchmarks on $(MODEL_FILE)..."
