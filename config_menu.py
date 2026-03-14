@@ -36,35 +36,58 @@ CONTEXT_SIZES = [
     "4096", "8192", "16384", "32768", "65536", "131072", "262144"
 ]
 
-MODES = ["thinking", "coding", "non-thinking"]
-
-# --- Sampling Parameters ---
-# Base parameters applied if a model doesn't have a specific override
-DEFAULT_PARAMS = {
-    "thinking":     {"temp": 0.6, "top_p": 0.90, "top_k": 40, "min_p": 0.05, "rep_pen": 1.1},
-    "coding":       {"temp": 0.2, "top_p": 0.95, "top_k": 20, "min_p": 0.05, "rep_pen": 1.0},
-    "non-thinking": {"temp": 0.8, "top_p": 0.95, "top_k": 50, "min_p": 0.10, "rep_pen": 1.15}
+# --- Sampling Parameters & Modes ---
+# Fallback modes if a model doesn't have custom ones
+DEFAULT_MODES = {
+    "Thinking":     {"temp": 0.6, "top_p": 0.90, "top_k": 40, "min_p": 0.05, "rep_pen": 1.1,  "pres_pen": 0.0, "extra": ""},
+    "Coding":       {"temp": 0.2, "top_p": 0.95, "top_k": 20, "min_p": 0.05, "rep_pen": 1.0,  "pres_pen": 0.0, "extra": ""},
+    "Non-Thinking": {"temp": 0.8, "top_p": 0.95, "top_k": 50, "min_p": 0.10, "rep_pen": 1.15, "pres_pen": 0.0, "extra": ""}
 }
 
-# Model-specific overrides. You only need to define the modes you want to change for a specific model.
-MODEL_PARAMS = {
-    "GLM 4.7 Flash": {
-        "thinking": {"temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0},
+# Qwen3.5 Specific Hybrid Modes (From Documentation)
+QWEN_3_5_MODES = {
+    "Thinking - General Tasks": {
+        "temp": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5, 
+        "extra": "--chat-template-kwargs '{\"enable_thinking\":true}'"
     },
-    "Qwen3 Coder Next": {
-        "coding": {"temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0},
+    "Thinking - Precise Coding": {
+        "temp": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0, 
+        "extra": "--chat-template-kwargs '{\"enable_thinking\":true}'"
     },
-    "Tri 21B Think": {
-        "thinking": {"temp": 0.5, "top_p": 0.85, "top_k": 30, "min_p": 0.02, "rep_pen": 1.05},
+    "Instruct (Non-Thinking) - General": {
+        "temp": 0.7, "top_p": 0.80, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5, 
+        "extra": "--chat-template-kwargs '{\"enable_thinking\":false}'"
+    },
+    "Instruct (Non-Thinking) - Reasoning": {
+        "temp": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5, 
+        "extra": "--chat-template-kwargs '{\"enable_thinking\":false}'"
     }
 }
 
-def get_generation_params(model_name, mode):
-    """Fetches generation params, prioritizing model-specific overrides over defaults."""
-    params = DEFAULT_PARAMS.get(mode, DEFAULT_PARAMS["non-thinking"]).copy()
-    if model_name in MODEL_PARAMS and mode in MODEL_PARAMS[model_name]:
-        params.update(MODEL_PARAMS[model_name][mode])
-    return params
+# Model-specific dictionaries. Maps model name -> its available modes.
+MODEL_MODES = {
+    "GLM 4.7 Flash": {
+        "Thinking": {"temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0, "pres_pen": 0.0, "extra": ""},
+        "Coding": DEFAULT_MODES["Coding"],
+        "Non-Thinking": DEFAULT_MODES["Non-Thinking"],
+    },
+    "Qwen3 Coder Next": {
+        "Coding": {"temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0, "pres_pen": 0.0, "extra": ""},
+        "Thinking": DEFAULT_MODES["Thinking"],
+        "Non-Thinking": DEFAULT_MODES["Non-Thinking"],
+    },
+    "Tri 21B Think": {
+        "Thinking": {"temp": 0.5, "top_p": 0.85, "top_k": 30, "min_p": 0.02, "rep_pen": 1.05, "pres_pen": 0.0, "extra": ""},
+        "Coding": DEFAULT_MODES["Coding"],
+        "Non-Thinking": DEFAULT_MODES["Non-Thinking"],
+    }
+}
+
+# Automatically assign the 4 Qwen modes to all Qwen 3.5 models
+for model in MODELS:
+    if "Qwen3.5" in model["name"]:
+        MODEL_MODES[model["name"]] = QWEN_3_5_MODES
+
 
 def draw_menu(stdscr, title, options, current_row):
     stdscr.clear()
@@ -116,15 +139,15 @@ def main(stdscr):
     selected_ctx_idx = select_from_list(stdscr, "4/5: Select Context Size:", CONTEXT_SIZES)
     selected_ctx = CONTEXT_SIZES[selected_ctx_idx]
 
-    # 5. Select Mode
-    selected_mode_idx = select_from_list(stdscr, "5/5: Select a Parameter Mode:", MODES)
-    selected_mode = MODES[selected_mode_idx]
-
-    # Look up specific generation parameters
-    gen_params = get_generation_params(selected_model["name"], selected_mode)
+    # 5. Select Mode (Dynamic based on selected model!)
+    available_modes_dict = MODEL_MODES.get(selected_model["name"], DEFAULT_MODES)
+    mode_names = list(available_modes_dict.keys())
+    selected_mode_idx = select_from_list(stdscr, f"5/5: Select Mode for {selected_model['name']}:", mode_names)
+    
+    selected_mode_name = mode_names[selected_mode_idx]
+    gen_params = available_modes_dict[selected_mode_name]
 
     # 6. Write to Makefile Config
-    # Check if absolute /models exists, otherwise default to local ./models
     base_models_dir = "/models" if os.path.isdir("/models") else "./models"
 
     with open("config.mk", "w") as f:
@@ -133,13 +156,16 @@ def main(stdscr):
         f.write(f"INCLUDE = \"*{selected_quant}*\"\n")
         f.write(f"LOCAL_DIR = {base_models_dir}/{selected_model['repo']}\n")
         f.write(f"CTX_SIZE = {selected_ctx}\n")
-        f.write(f"MODE = {selected_mode}\n")
+        f.write(f"MODE = {selected_mode_name}\n")
+        
         # Write generation parameters
-        f.write(f"TEMP = {gen_params['temp']}\n")
-        f.write(f"TOP_P = {gen_params['top_p']}\n")
-        f.write(f"TOP_K = {gen_params['top_k']}\n")
-        f.write(f"MIN_P = {gen_params['min_p']}\n")
-        f.write(f"REP_PENALTY = {gen_params['rep_pen']}\n")
+        f.write(f"TEMP = {gen_params.get('temp', 0.8)}\n")
+        f.write(f"TOP_P = {gen_params.get('top_p', 0.95)}\n")
+        f.write(f"TOP_K = {gen_params.get('top_k', 40)}\n")
+        f.write(f"MIN_P = {gen_params.get('min_p', 0.05)}\n")
+        f.write(f"REP_PENALTY = {gen_params.get('rep_pen', 1.1)}\n")
+        f.write(f"PRES_PEN = {gen_params.get('pres_pen', 0.0)}\n")
+        f.write(f"EXTRA_ARGS = {gen_params.get('extra', '')}\n")
 
     stdscr.clear()
     stdscr.addstr(0, 0, "Saved Configuration to config.mk!", curses.A_BOLD)
@@ -147,13 +173,14 @@ def main(stdscr):
     stdscr.addstr(3, 0, f"Class   : {selected_bit}")
     stdscr.addstr(4, 0, f"Quant   : {selected_quant}")
     stdscr.addstr(5, 0, f"Context : {selected_ctx}")
-    stdscr.addstr(6, 0, f"Mode    : {selected_mode}")
+    stdscr.addstr(6, 0, f"Mode    : {selected_mode_name}")
     
-    # Display the derived parameters
     stdscr.addstr(8, 0, "Derived Parameters:", curses.A_UNDERLINE)
-    stdscr.addstr(9, 0, f"Temp: {gen_params['temp']} | Top-P: {gen_params['top_p']} | Top-K: {gen_params['top_k']} | Min-P: {gen_params['min_p']} | Rep-Pen: {gen_params['rep_pen']}")
-    
-    stdscr.addstr(11, 0, "Press any key to exit and run 'make download' or 'make run-server'...")
+    stdscr.addstr(9, 0, f"Temp: {gen_params['temp']} | Top-P: {gen_params['top_p']} | Pres-Pen: {gen_params['pres_pen']}")
+    if gen_params.get("extra"):
+        stdscr.addstr(10, 0, f"Extra: {gen_params['extra']}")
+
+    stdscr.addstr(12, 0, "Press any key to exit and run 'make download' or 'make run-server'...")
     stdscr.refresh()
     stdscr.getch()
 

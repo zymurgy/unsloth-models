@@ -37,6 +37,8 @@ TOP_P       ?= 0.95
 TOP_K       ?= 50
 MIN_P       ?= 0.10
 REP_PENALTY ?= 1.15
+PRES_PEN    ?= 0.0
+EXTRA_ARGS  ?= 
 
 # Dynamically find the first .gguf file matching the quant in the downloaded dir.
 # llama.cpp will automatically find the rest of the shards if it's a split model.
@@ -48,12 +50,11 @@ MODEL_FILE = $(shell find $(LOCAL_DIR) -name "*$(QUANT)*.gguf" | sort | head -n 
 GPU_ARGS    = --n-gpu-layers 99
 CTX_ARGS    = --ctx-size $(CTX_SIZE)
 
-# Removed --seed 3407 so generation is naturally varied
 CLI_ARGS    = --prio 2
 BENCH_ARGS  ?= -p 512,1024 -n 128,256
 
-# Dynamically generated parameters from config.mk
-ACTIVE_PARAMS = --temp $(TEMP) --top-p $(TOP_P) --top-k $(TOP_K) --min-p $(MIN_P) --repeat-penalty $(REP_PENALTY)
+# Dynamically generated parameters from config.mk (Now includes PRES_PEN and EXTRA_ARGS)
+ACTIVE_PARAMS = --temp $(TEMP) --top-p $(TOP_P) --top-k $(TOP_K) --min-p $(MIN_P) --repeat-penalty $(REP_PENALTY) --presence-penalty $(PRES_PEN) $(EXTRA_ARGS)
 
 # ==========================================
 # 3. Targets
@@ -73,7 +74,7 @@ help:
 	@echo "  make run-bench  - Run performance benchmarks"
 	@echo "====================================================================="
 	@echo "Current Config: $(REPO) | Quant: $(QUANT) | Mode: $(MODE)"
-	@echo "Params: Temp $(TEMP), Top-P $(TOP_P), Top-K $(TOP_K), Min-P $(MIN_P), RepPen $(REP_PENALTY)"
+	@echo "Params: Temp $(TEMP), Top-P $(TOP_P), Top-K $(TOP_K), Min-P $(MIN_P), RepPen $(REP_PENALTY), PresPen $(PRES_PEN)"
 
 # --- Safeguard ---
 check-model:
