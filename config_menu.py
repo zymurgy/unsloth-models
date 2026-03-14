@@ -3,6 +3,7 @@ import os
 
 # --- Configuration Data ---
 MODELS = [
+    {"name": "NVIDIA Nemotron 3 Super 120B", "repo": "unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF"},
     {"name": "Qwen3.5 0.8B", "repo": "unsloth/Qwen3.5-0.8B-GGUF"},
     {"name": "Qwen3.5 2B", "repo": "unsloth/Qwen3.5-2B-GGUF"},
     {"name": "Qwen3.5 4B", "repo": "unsloth/Qwen3.5-4B-GGUF"},
@@ -12,7 +13,7 @@ MODELS = [
     {"name": "Qwen3.5 122B-A10B", "repo": "unsloth/Qwen3.5-122B-A10B-GGUF"},
     {"name": "Qwen3.5 397B-A17B", "repo": "unsloth/Qwen3.5-397B-A17B-GGUF"},
     {"name": "Qwen3 Coder Next", "repo": "unsloth/Qwen3-Coder-Next-GGUF"},
-    {"name": "NVIDIA Nemotron 3 Super 120B", "repo": "unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF"}
+    {"name": "Tri 21B Think", "repo": "mykor/Tri-21B-Think-GGUF"},
 ]
 
 # Grouped by bit-depth according to the matrix
@@ -21,8 +22,8 @@ QUANT_GROUPS = {
     "2-bit": ["UD-IQ2_XXS", "Q2_K", "UD-IQ2_M", "Q2_K_L", "UD-Q2_K_XL"],
     "3-bit": ["UD-IQ3_XXS", "Q3_K_S", "UD-IQ3_S", "UD-Q3_K_S", "Q3_K_M", "UD-Q3_K_M", "UD-Q3_K_XL"],
     "4-bit": [
-        "IQ4_XS", "UD-IQ4_XS", "Q4_K_S", "UD-Q4_K_S", 
-        "Q4_1", "IQ4_NL", "MXFP4_MOE", "Q4_0", 
+        "IQ4_XS", "UD-IQ4_XS", "Q4_K_S", "UD-Q4_K_S",
+        "Q4_1", "IQ4_NL", "MXFP4_MOE", "Q4_0",
         "UD-IQ4_NL", "Q4_K_M", "UD-Q4_K_M", "UD-Q4_K_XL"
     ],
     "5-bit": ["Q5_K_S", "UD-Q5_K_S", "Q5_K_M", "UD-Q5_K_M", "UD-Q5_K_XL"],
@@ -30,6 +31,16 @@ QUANT_GROUPS = {
     "8-bit": ["Q8_0", "UD-Q8_K_XL"],
     "16-bit": ["BF16"]
 }
+
+CONTEXT_SIZES = [
+    "4096",
+    "8192",
+    "16384",
+    "32768",
+    "65536",
+    "131072",
+    "262144"
+]
 
 MODES = ["thinking", "coding", "non-thinking"]
 
@@ -66,39 +77,45 @@ def select_from_list(stdscr, title, options):
 def main(stdscr):
     # 1. Select Model
     model_names = [m["name"] for m in MODELS]
-    selected_model_idx = select_from_list(stdscr, "1/4: Select a Model:", model_names)
+    selected_model_idx = select_from_list(stdscr, "1/5: Select a Model:", model_names)
     selected_model = MODELS[selected_model_idx]
 
     # 2. Select Bit-Depth Category
     bit_depths = list(QUANT_GROUPS.keys())
-    selected_bit_idx = select_from_list(stdscr, f"2/4: Select Bit-Depth for {selected_model['name']}:", bit_depths)
+    selected_bit_idx = select_from_list(stdscr, f"2/5: Select Bit-Depth for {selected_model['name']}:", bit_depths)
     selected_bit = bit_depths[selected_bit_idx]
 
     # 3. Select Specific Quantization
     specific_quants = QUANT_GROUPS[selected_bit]
-    selected_quant_idx = select_from_list(stdscr, f"3/4: Select Specific {selected_bit} Quantization:", specific_quants)
+    selected_quant_idx = select_from_list(stdscr, f"3/5: Select Specific {selected_bit} Quantization:", specific_quants)
     selected_quant = specific_quants[selected_quant_idx]
 
-    # 4. Select Mode
-    selected_mode_idx = select_from_list(stdscr, "4/4: Select a Parameter Mode:", MODES)
+    # 4. Select Context Size
+    selected_ctx_idx = select_from_list(stdscr, "4/5: Select Context Size:", CONTEXT_SIZES)
+    selected_ctx = CONTEXT_SIZES[selected_ctx_idx]
+
+    # 5. Select Mode
+    selected_mode_idx = select_from_list(stdscr, "5/5: Select a Parameter Mode:", MODES)
     selected_mode = MODES[selected_mode_idx]
 
-    # 5. Write to Makefile Config
+    # 6. Write to Makefile Config
     with open("config.mk", "w") as f:
         f.write(f"REPO = {selected_model['repo']}\n")
         f.write(f"QUANT = {selected_quant}\n")
         # Include flag uses wildcards so it catches both loose files and subdirectories
-        f.write(f"INCLUDE = \"*{selected_quant}*\"\n") 
+        f.write(f"INCLUDE = \"*{selected_quant}*\"\n")
         f.write(f"LOCAL_DIR = /models/{selected_model['repo']}\n")
+        f.write(f"CTX_SIZE = {selected_ctx}\n")
         f.write(f"MODE = {selected_mode}\n")
 
     stdscr.clear()
     stdscr.addstr(0, 0, "Saved Configuration to config.mk!", curses.A_BOLD)
-    stdscr.addstr(2, 0, f"Model: {selected_model['name']}")
-    stdscr.addstr(3, 0, f"Class: {selected_bit}")
-    stdscr.addstr(4, 0, f"Quant: {selected_quant}")
-    stdscr.addstr(5, 0, f"Mode : {selected_mode}")
-    stdscr.addstr(7, 0, "Press any key to exit and run 'make download' or 'make run-server'...")
+    stdscr.addstr(2, 0, f"Model   : {selected_model['name']}")
+    stdscr.addstr(3, 0, f"Class   : {selected_bit}")
+    stdscr.addstr(4, 0, f"Quant   : {selected_quant}")
+    stdscr.addstr(5, 0, f"Context : {selected_ctx}")
+    stdscr.addstr(6, 0, f"Mode    : {selected_mode}")
+    stdscr.addstr(8, 0, "Press any key to exit and run 'make download' or 'make run-server'...")
     stdscr.refresh()
     stdscr.getch()
 

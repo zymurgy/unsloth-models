@@ -11,6 +11,7 @@ QUANT      ?= Q4_K_M
 INCLUDE    ?= "*$(QUANT)*"
 LOCAL_DIR  ?= /models/$(REPO)
 MODE       ?= non-thinking
+CTX_SIZE   ?= 16384
 
 # Dynamically find the first .gguf file matching the quant in the downloaded dir.
 # llama.cpp will automatically find the rest of the shards if it's a split model.
@@ -20,7 +21,7 @@ MODEL_FILE = $(shell find $(LOCAL_DIR) -name "*$(QUANT)*.gguf" | sort | head -n 
 # 2. Inference Parameters
 # ==========================================
 GPU_ARGS    = --n-gpu-layers 99
-CTX_ARGS    = --ctx-size 16384
+CTX_ARGS   = --ctx-size $(CTX_SIZE)
 
 CLI_ARGS    = --seed 3407 --prio 2
 BENCH_ARGS  ?= -p 512,1024 -n 128,256
