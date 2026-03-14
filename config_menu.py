@@ -3,6 +3,11 @@ import os
 
 # --- Configuration Data ---
 MODELS = [
+    {"name": "Gemma 3 270M", "repo": "unsloth/gemma-3-270m-it-GGUF"},
+    {"name": "Gemma 3 1B", "repo": "unsloth/gemma-3-1b-it-GGUF"},
+    {"name": "Gemma 3 4B", "repo": "unsloth/gemma-3-4b-it-GGUF"},
+    {"name": "Gemma 3 12B", "repo": "unsloth/gemma-3-12b-it-GGUF"},
+    {"name": "Gemma 3 27B", "repo": "unsloth/gemma-3-27b-it-GGUF"},
     {"name": "GLM 4.7 Flash", "repo": "unsloth/GLM-4.7-Flash-GGUF"},
     {"name": "GPT OSS 20B", "repo": "unsloth/gpt-oss-20b-GGUF"},
     {"name": "GPT OSS 120B", "repo": "unsloth/gpt-oss-120b-GGUF"},
@@ -97,6 +102,12 @@ GPT_OSS_MODES = {
     }
 }
 
+GEMMA_3_MODES = {
+    "Official Recommendation": {
+        "temp": 1.0, "top_p": 0.95, "top_k": 64, "min_p": 0.01, "rep_pen": 1.0, "pres_pen": 0.0, "extra": ""
+    }
+}
+
 MODEL_MODES = {
     "GLM 4.7 Flash": GLM_4_7_MODES,
     "NVIDIA Nemotron 3 Super 120B": NEMOTRON_3_MODES,
@@ -110,9 +121,12 @@ MODEL_MODES = {
     }
 }
 
+# Automatically assign modes based on names
 for model in MODELS:
     if "Qwen3.5" in model["name"]:
         MODEL_MODES[model["name"]] = QWEN_3_5_MODES
+    elif "Gemma 3" in model["name"]:
+        MODEL_MODES[model["name"]] = GEMMA_3_MODES
 
 # --- UI Functions ---
 def draw_menu(stdscr, title, options, current_row, show_back):
@@ -127,7 +141,7 @@ def draw_menu(stdscr, title, options, current_row, show_back):
             stdscr.attroff(curses.color_pair(1))
         else:
             stdscr.addstr(y, x, f"  {option}")
-            
+
     # Draw Footer
     footer_y = len(options) + 4
     stdscr.addstr(footer_y, 0, "[ENTER] Select  [UP/DOWN] Navigate", curses.A_DIM)
@@ -135,7 +149,7 @@ def draw_menu(stdscr, title, options, current_row, show_back):
         stdscr.addstr(footer_y + 1, 0, "[B] Back        [Q / ESC] Quit without saving", curses.A_DIM)
     else:
         stdscr.addstr(footer_y + 1, 0, "[Q / ESC] Quit without saving", curses.A_DIM)
-        
+
     stdscr.refresh()
 
 def select_from_list(stdscr, title, options, show_back=True):
@@ -160,7 +174,7 @@ def select_from_list(stdscr, title, options, show_back=True):
 
 def main(stdscr):
     step = 0
-    
+
     # State variables to hold selections as we move forward/backward
     selected_model = None
     selected_bit = None
@@ -207,7 +221,7 @@ def main(stdscr):
             res = select_from_list(stdscr, f"5/5: Select Mode for {selected_model['name']}:", mode_names)
             if res == "EXIT": return
             if res == "BACK": step -= 1; continue
-            
+
             selected_mode_name = mode_names[res]
             gen_params = available_modes_dict[selected_mode_name]
             step += 1 # Breaks the while loop
