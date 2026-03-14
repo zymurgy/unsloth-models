@@ -18,13 +18,16 @@ else
     CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON
 endif
 
+# Check if absolute /models exists, otherwise use local ./models
+BASE_MODELS_DIR := $(shell test -d /models && echo /models || echo ./models)
+
 LLAMA_PATH ?= ./llama.cpp
 
 # Fallbacks in case config.mk hasn't been generated yet
 REPO        ?= unsloth/Qwen3.5-122B-A10B-GGUF
 QUANT       ?= Q4_K_M
 INCLUDE     ?= "*$(QUANT)*"
-LOCAL_DIR   ?= /models/$(REPO)
+LOCAL_DIR   ?= $(BASE_MODELS_DIR)/$(REPO)
 MODE        ?= non-thinking
 CTX_SIZE    ?= 16384
 

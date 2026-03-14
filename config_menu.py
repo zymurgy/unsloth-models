@@ -124,11 +124,14 @@ def main(stdscr):
     gen_params = get_generation_params(selected_model["name"], selected_mode)
 
     # 6. Write to Makefile Config
+    # Check if absolute /models exists, otherwise default to local ./models
+    base_models_dir = "/models" if os.path.isdir("/models") else "./models"
+
     with open("config.mk", "w") as f:
         f.write(f"REPO = {selected_model['repo']}\n")
         f.write(f"QUANT = {selected_quant}\n")
         f.write(f"INCLUDE = \"*{selected_quant}*\"\n")
-        f.write(f"LOCAL_DIR = /models/{selected_model['repo']}\n")
+        f.write(f"LOCAL_DIR = {base_models_dir}/{selected_model['repo']}\n")
         f.write(f"CTX_SIZE = {selected_ctx}\n")
         f.write(f"MODE = {selected_mode}\n")
         # Write generation parameters
