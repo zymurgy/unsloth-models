@@ -56,6 +56,16 @@ GLM_4_7_MODES = {
     }
 }
 
+# Nemotron 3 Super Specific Modes
+NEMOTRON_3_MODES = {
+    "General Chat/Instruction": {
+        "temp": 1.0, "top_p": 1.0, "top_k": 40, "min_p": 0.05, "rep_pen": 1.1, "pres_pen": 0.0, "extra": ""
+    },
+    "Tool Calling": {
+        "temp": 0.6, "top_p": 0.95, "top_k": 40, "min_p": 0.05, "rep_pen": 1.1, "pres_pen": 0.0, "extra": ""
+    }
+}
+
 # Qwen3.5 Specific Hybrid Modes
 QWEN_3_5_MODES = {
     "Thinking - General Tasks": {
@@ -80,7 +90,7 @@ QWEN_3_5_MODES = {
 GPT_OSS_MODES = {
     "Reasoning Effort: Low": {
         "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0,
-        "extra": "" 
+        "extra": ""
     },
     "Reasoning Effort: Medium": {
         "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0,
@@ -96,6 +106,7 @@ GPT_OSS_MODES = {
 # Model-specific dictionaries. Maps model name -> its available modes.
 MODEL_MODES = {
     "GLM 4.7 Flash": GLM_4_7_MODES,
+    "NVIDIA Nemotron 3 Super 120B": NEMOTRON_3_MODES,
     "GPT OSS 20B": GPT_OSS_MODES,
     "GPT OSS 120B": GPT_OSS_MODES,
     "Qwen3 Coder Next": {
