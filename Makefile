@@ -51,8 +51,8 @@ IS_VISION_MODEL ?= false
 # Dynamically find the first .gguf file matching the quant in the downloaded dir.
 MODEL_FILE = $(shell find $(LOCAL_DIR) -name "*$(QUANT)*.gguf" 2>/dev/null | sort | head -n 1)
 
-# For vision models, find the mmproj file
-MMPROJ_FILE = $(shell find $(LOCAL_DIR) -name "mmproj*.gguf" 2>/dev/null | sort | head -n 1)
+# For vision models, find the mmproj-F16.gguf file
+MMPROJ_FILE = $(shell find $(LOCAL_DIR) -name "mmproj-F16.gguf" 2>/dev/null | sort | head -n 1)
 
 # ==========================================
 # 2. Inference Parameters
@@ -109,11 +109,11 @@ download:
 		echo "ERROR: Virtual environment not found. Run 'make setup' first."; \
 		exit 1; \
 	fi
-	@echo "Downloading $(QUANT) from $(REPO) to $(LOCAL_DIR)..."
+	@echo "Downloading $(QUANT) weights from $(REPO) to $(LOCAL_DIR)..."
 	env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "$(INCLUDE)" --local-dir $(LOCAL_DIR)
 	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
-		echo "Downloading mmproj file for vision model..." ; \
-		env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "mmproj*.gguf" --local-dir $(LOCAL_DIR) ; \
+		echo "Downloading mmproj-F16.gguf for vision model..." ; \
+		env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "mmproj-F16.gguf" --local-dir $(LOCAL_DIR) ; \
 	fi
 
 run-cli: check-model

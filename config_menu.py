@@ -72,19 +72,19 @@ NEMOTRON_3_MODES = {
 QWEN_3_5_MODES = {
     "Thinking - General Tasks": {
         "temp": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5,
-        "extra": "--chat-template-kwargs '{\"enable_thinking\":true}'"
+        "extra": "--reasoning on", "mmproj": True
     },
     "Thinking - Precise Coding": {
         "temp": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0,
-        "extra": "--chat-template-kwargs '{\"enable_thinking\":true}'"
+        "extra": "--reasoning on", "mmproj": True
     },
     "Instruct (Non-Thinking) - General": {
         "temp": 0.7, "top_p": 0.80, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5,
-        "extra": "--chat-template-kwargs '{\"enable_thinking\":false}'"
+        "extra": "--reasoning off", "mmproj": True
     },
     "Instruct (Non-Thinking) - Reasoning": {
         "temp": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5,
-        "extra": "--chat-template-kwargs '{\"enable_thinking\":false}'"
+        "extra": "--reasoning off", "mmproj": True
     }
 }
 
@@ -239,7 +239,7 @@ def main(stdscr):
             step += 1 # Breaks the while loop
 
    # Check if vision model (for mmproj parameter)
-    is_vision_model = "Qwen3 VL" in selected_model["name"]
+    is_vision_model = gen_params.get("mmproj", False)
 
     # --- Step 6: Write to Makefile Config ---
     # (This code is only reached if the user successfully navigates all 5 steps)
