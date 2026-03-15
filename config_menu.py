@@ -22,6 +22,7 @@ MODELS = [
     {"name": "Qwen3.5 122B-A10B", "repo": "unsloth/Qwen3.5-122B-A10B-GGUF"},
     {"name": "Qwen3.5 397B-A17B", "repo": "unsloth/Qwen3.5-397B-A17B-GGUF"},
     {"name": "Qwen3 Coder Next", "repo": "unsloth/Qwen3-Coder-Next-GGUF"},
+    {"name": "Qwen3 VL 2B Instruct", "repo": "unsloth/Qwen3-VL-2B-Instruct-GGUF"},
 ]
 
 QUANT_GROUPS = {
@@ -87,6 +88,17 @@ QWEN_3_5_MODES = {
     }
 }
 
+QWEN_3_VL_MODES = {
+    "Instruct": {
+        "temp": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 1.5,
+        "extra": "", "mmproj": True
+    },
+    "Thinking": {
+        "temp": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0,
+        "extra": "", "mmproj": True
+    },
+}
+
 GPT_OSS_MODES = {
     "Reasoning Effort: Low": {
         "temp": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0, "rep_pen": 1.0, "pres_pen": 0.0,
@@ -116,17 +128,17 @@ MODEL_MODES = {
     "GPT OSS 120B": GPT_OSS_MODES,
     "Qwen3 Coder Next": {
         "Coding": {"temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.01, "rep_pen": 1.0, "pres_pen": 0.0, "extra": ""},
-        "Thinking": DEFAULT_MODES["Thinking"],
-        "Non-Thinking": DEFAULT_MODES["Non-Thinking"],
     }
 }
 
 # Automatically assign modes based on names
 for model in MODELS:
-    if "Qwen3.5" in model["name"]:
-        MODEL_MODES[model["name"]] = QWEN_3_5_MODES
-    elif "Gemma 3" in model["name"]:
+    if "Gemma 3" in model["name"]:
         MODEL_MODES[model["name"]] = GEMMA_3_MODES
+    elif "Qwen3.5" in model["name"]:
+        MODEL_MODES[model["name"]] = QWEN_3_5_MODES
+    elif "Qwen3 VL" in model["name"]:
+        MODEL_MODES[model["name"]] = QWEN_3_VL_MODES
 
 # --- UI Functions ---
 def draw_menu(stdscr, title, options, current_row, show_back):
@@ -226,6 +238,9 @@ def main(stdscr):
             gen_params = available_modes_dict[selected_mode_name]
             step += 1 # Breaks the while loop
 
+   # Check if vision model (for mmproj parameter)
+    is_vision_model = "Qwen3 VL" in selected_model["name"]
+
     # --- Step 6: Write to Makefile Config ---
     # (This code is only reached if the user successfully navigates all 5 steps)
     base_models_dir = "/models" if os.path.isdir("/models") else "./models"
@@ -246,6 +261,7 @@ def main(stdscr):
         f.write(f"REP_PENALTY = {gen_params.get('rep_pen', 1.1)}\n")
         f.write(f"PRES_PEN = {gen_params.get('pres_pen', 0.0)}\n")
         f.write(f"EXTRA_ARGS = {gen_params.get('extra', '')}\n")
+        f.write(f"IS_VISION_MODEL = {'true' if is_vision_model else 'false'}\n")
 
     # Display confirmation screen
     stdscr.clear()
@@ -260,8 +276,10 @@ def main(stdscr):
     stdscr.addstr(9, 0, f"Temp: {gen_params['temp']} | Top-P: {gen_params['top_p']} | Min-P: {gen_params['min_p']} | Rep-Pen: {gen_params['rep_pen']}")
     if gen_params.get("extra"):
         stdscr.addstr(10, 0, f"Extra: {gen_params['extra']}")
+    if is_vision_model:
+        stdscr.addstr(11, 0, "Vision Model: Yes (mmproj will be used)")
 
-    stdscr.addstr(12, 0, "Press any key to exit and run 'make download' or 'make run-server'...")
+    stdscr.addstr(13, 0, "Press any key to exit and run 'make download' or 'make run-server'...")
     stdscr.refresh()
     stdscr.getch()
 

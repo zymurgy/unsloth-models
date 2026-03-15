@@ -45,10 +45,14 @@ TOP_K       ?= 50
 MIN_P       ?= 0.10
 REP_PENALTY ?= 1.15
 PRES_PEN    ?= 0.0
-EXTRA_ARGS  ?= 
+EXTRA_ARGS  ?=
+IS_VISION_MODEL ?= false
 
 # Dynamically find the first .gguf file matching the quant in the downloaded dir.
 MODEL_FILE = $(shell find $(LOCAL_DIR) -name "*$(QUANT)*.gguf" 2>/dev/null | sort | head -n 1)
+
+# For vision models, find the mmproj file
+MMPROJ_FILE = $(shell find $(LOCAL_DIR) -name "mmproj*.gguf" 2>/dev/null | sort | head -n 1)
 
 # ==========================================
 # 2. Inference Parameters
@@ -81,6 +85,11 @@ help:
 	@echo "====================================================================="
 	@echo "Current Config: $(REPO) | Quant: $(QUANT) | Mode: $(MODE)"
 	@echo "Params: Temp $(TEMP), Top-P $(TOP_P), Top-K $(TOP_K), Min-P $(MIN_P), RepPen $(REP_PENALTY), PresPen $(PRES_PEN)"
+	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
+		echo "Vision Model: Yes (mmproj: $(MMPROJ_FILE))" ; \
+	else \
+		echo "Vision Model: No" ; \
+	fi
 
 # --- Safeguard ---
 check-model:
@@ -101,19 +110,38 @@ download:
 		exit 1; \
 	fi
 	@echo "Downloading $(QUANT) from $(REPO) to $(LOCAL_DIR)..."
-	env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include $(INCLUDE) --local-dir $(LOCAL_DIR)
+	env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "$(INCLUDE)" --local-dir $(LOCAL_DIR)
+	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
+		echo "Downloading mmproj file for vision model..." ; \
+		env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "mmproj*.gguf" --local-dir $(LOCAL_DIR) ; \
+	fi
 
 run-cli: check-model
 	@echo "Starting CLI using $(MODEL_FILE) in $(MODE) mode..."
-	$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS)
+	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
+		echo "Using mmproj: $(MMPROJ_FILE)" ; \
+		$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS) ; \
+	else \
+		$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS) ; \
+	fi
 
 run-server: check-model
 	@echo "Starting Server using $(MODEL_FILE) in $(MODE) mode..."
-	$(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --alias "$(REPO)" --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS)
+	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
+		echo "Using mmproj: $(MMPROJ_FILE)" ; \
+		$(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) --alias "$(REPO)" --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS) ; \
+	else \
+		$(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --alias "$(REPO)" --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS) ; \
+	fi
 
 run-bench: check-model
 	@echo "Running Benchmarks on $(MODEL_FILE)..."
-	$(LLAMA_PATH)/llama-bench -m $(MODEL_FILE) $(GPU_ARGS) $(BENCH_ARGS)
+	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
+		echo "Using mmproj: $(MMPROJ_FILE)" ; \
+		$(LLAMA_PATH)/llama-bench -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) $(GPU_ARGS) $(BENCH_ARGS) ; \
+	else \
+		$(LLAMA_PATH)/llama-bench -m $(MODEL_FILE) $(GPU_ARGS) $(BENCH_ARGS) ; \
+	fi
 
 # --- Build Targets ---
 setup:
