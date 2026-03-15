@@ -11,6 +11,7 @@ MODELS = [
     {"name": "GLM 4.7 Flash", "repo": "unsloth/GLM-4.7-Flash-GGUF"},
     {"name": "GPT OSS 20B", "repo": "unsloth/gpt-oss-20b-GGUF"},
     {"name": "GPT OSS 120B", "repo": "unsloth/gpt-oss-120b-GGUF"},
+    {"name": "MiniMax M2.5", "repo": "unsloth/MiniMax-M2.5-GGUF"},
     {"name": "NVIDIA Nemotron 3 Super 120B", "repo": "unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF"},
     {"name": "NVIDIA Nemotron 3 Nano 30B", "repo": "unsloth/Nemotron-3-Nano-30B-A3B-GGUF"},
     {"name": "Qwen3.5 0.8B", "repo": "unsloth/Qwen3.5-0.8B-GGUF"},
@@ -120,6 +121,12 @@ GEMMA_3_MODES = {
     }
 }
 
+MINIMAX_M2_5_MODES = {
+    "General": {
+        "temp": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.1, "rep_pen": 1.0, "pres_pen": 0.0, "extra": ""
+    }
+}
+
 MODEL_MODES = {
     "GLM 4.7 Flash": GLM_4_7_MODES,
     "NVIDIA Nemotron 3 Super 120B": NEMOTRON_3_MODES,
@@ -139,6 +146,8 @@ for model in MODELS:
         MODEL_MODES[model["name"]] = QWEN_3_5_MODES
     elif "Qwen3 VL" in model["name"]:
         MODEL_MODES[model["name"]] = QWEN_3_VL_MODES
+    elif "MiniMax M2.5" in model["name"]:
+        MODEL_MODES[model["name"]] = MINIMAX_M2_5_MODES
 
 # --- UI Functions ---
 def draw_menu(stdscr, title, options, current_row, show_back):

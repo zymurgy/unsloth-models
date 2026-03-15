@@ -120,8 +120,10 @@ run-cli: check-model
 	@echo "Starting CLI using $(MODEL_FILE) in $(MODE) mode..."
 	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
 		echo "Using mmproj: $(MMPROJ_FILE)" ; \
+		echo "Command: $(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS)" ; \
 		$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS) ; \
 	else \
+		echo "Command: $(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS)" ; \
 		$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS) ; \
 	fi
 
@@ -129,8 +131,10 @@ run-server: check-model
 	@echo "Starting Server using $(MODEL_FILE) in $(MODE) mode..."
 	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
 		echo "Using mmproj: $(MMPROJ_FILE)" ; \
+		echo "Command: $(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) --alias \"$(REPO)\" --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS)" ; \
 		$(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) --alias "$(REPO)" --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS) ; \
 	else \
+		echo "Command: $(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --alias \"$(REPO)\" --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS)" ; \
 		$(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --alias "$(REPO)" --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS) ; \
 	fi
 
