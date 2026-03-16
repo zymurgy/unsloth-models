@@ -38,6 +38,11 @@ LOCAL_DIR   ?= $(BASE_MODELS_DIR)/$(REPO)
 MODE        ?= non-thinking
 CTX_SIZE    ?= 16384
 
+# Hardware Profile Fallbacks
+GPU_LAYERS   ?= 99
+SPLIT_MODE   ?= layer
+TENSOR_SPLIT ?= 0
+
 # Parameter Fallbacks
 TEMP        ?= 0.8
 TOP_P       ?= 0.95
@@ -57,11 +62,15 @@ MMPROJ_FILE = $(shell find $(LOCAL_DIR) -name "mmproj-F16.gguf" 2>/dev/null | so
 # ==========================================
 # 2. Inference Parameters
 # ==========================================
-GPU_ARGS    = --n-gpu-layers 99
+GPU_ARGS    = --n-gpu-layers $(GPU_LAYERS) --split-mode $(SPLIT_MODE)
+ifneq ($(TENSOR_SPLIT),0)
+GPU_ARGS   += --tensor-split $(TENSOR_SPLIT)
+endif
+
 CTX_ARGS    = --ctx-size $(CTX_SIZE)
 
 CLI_ARGS    = --prio 2
-BENCH_ARGS  ?= -p 512,1024 -n 128,256
+BENCH_ARGS  ?= -p 512,1024 -n 128,256 -r 1
 
 # Dynamically generated parameters from config.mk
 ACTIVE_PARAMS = --temp $(TEMP) --top-p $(TOP_P) --top-k $(TOP_K) --min-p $(MIN_P) --repeat-penalty $(REP_PENALTY) --presence-penalty $(PRES_PEN) $(EXTRA_ARGS)
@@ -84,6 +93,7 @@ help:
 	@echo "  make run-bench  - Run performance benchmarks"
 	@echo "====================================================================="
 	@echo "Current Config: $(REPO) | Quant: $(QUANT) | Mode: $(MODE)"
+	@echo "Hardware Profile: Layers $(GPU_LAYERS) | Split $(SPLIT_MODE) | TensorSplit $(TENSOR_SPLIT)"
 	@echo "Params: Temp $(TEMP), Top-P $(TOP_P), Top-K $(TOP_K), Min-P $(MIN_P), RepPen $(REP_PENALTY), PresPen $(PRES_PEN)"
 	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
 		echo "Vision Model: Yes (mmproj: $(MMPROJ_FILE))" ; \

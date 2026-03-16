@@ -1,6 +1,26 @@
 import curses
 import os
 
+# --- Machine Profiles ---
+# System-specific settings for different hardware in your homelab.
+MACHINE_PROFILES = {
+    "4x RTX 3090 - Max Performance": {
+        "gpu_layers": 99, 
+        "split_mode": "layer",
+        "tensor_split": "10,11,11,11"  # Balanced for 4 GPUs, lighter on Device 0
+    },
+    "4x RTX 3090 - Hybrid (CPU Offload)": {
+        "gpu_layers": 40, 
+        "split_mode": "layer",
+        "tensor_split": "0,0,0,0"     # Use default splitting for hybrid
+    },
+    "Mac Mini M4 (24GB Unified)": {
+        "gpu_layers": 99, 
+        "split_mode": "none",
+        "tensor_split": "0"
+    }
+}
+
 # --- Configuration Data ---
 MODELS = [
     {"name": "Gemma 3 270M", "repo": "unsloth/gemma-3-270m-it-GGUF"},
@@ -197,6 +217,8 @@ def main(stdscr):
     step = 0
 
     # State variables to hold selections as we move forward/backward
+    selected_profile_name = None
+    selected_profile_data = None
     selected_model = None
     selected_bit = None
     selected_quant = None
@@ -205,41 +227,50 @@ def main(stdscr):
     gen_params = None
 
     # State Machine Loop
-    while step < 5:
+    while step < 6:
         if step == 0:
-            model_names = [m["name"] for m in MODELS]
-            res = select_from_list(stdscr, "1/5: Select a Model:", model_names, show_back=False)
+            profiles = list(MACHINE_PROFILES.keys())
+            res = select_from_list(stdscr, "0/6: Select Machine Profile:", profiles, show_back=False)
             if res == "EXIT": return
-            selected_model = MODELS[res]
+            selected_profile_name = profiles[res]
+            selected_profile_data = MACHINE_PROFILES[selected_profile_name]
             step += 1
 
         elif step == 1:
+            model_names = [m["name"] for m in MODELS]
+            res = select_from_list(stdscr, f"1/6: Select a Model (Profile: {selected_profile_name}):", model_names)
+            if res == "EXIT": return
+            if res == "BACK": step -= 1; continue
+            selected_model = MODELS[res]
+            step += 1
+
+        elif step == 2:
             bit_depths = list(QUANT_GROUPS.keys())
-            res = select_from_list(stdscr, f"2/5: Select Bit-Depth for {selected_model['name']}:", bit_depths)
+            res = select_from_list(stdscr, f"2/6: Select Bit-Depth for {selected_model['name']}:", bit_depths)
             if res == "EXIT": return
             if res == "BACK": step -= 1; continue
             selected_bit = bit_depths[res]
             step += 1
 
-        elif step == 2:
+        elif step == 3:
             specific_quants = QUANT_GROUPS[selected_bit]
-            res = select_from_list(stdscr, f"3/5: Select Specific {selected_bit} Quantization:", specific_quants)
+            res = select_from_list(stdscr, f"3/6: Select Specific {selected_bit} Quantization:", specific_quants)
             if res == "EXIT": return
             if res == "BACK": step -= 1; continue
             selected_quant = specific_quants[res]
             step += 1
 
-        elif step == 3:
-            res = select_from_list(stdscr, "4/5: Select Context Size:", CONTEXT_SIZES)
+        elif step == 4:
+            res = select_from_list(stdscr, "4/6: Select Context Size:", CONTEXT_SIZES)
             if res == "EXIT": return
             if res == "BACK": step -= 1; continue
             selected_ctx = CONTEXT_SIZES[res]
             step += 1
 
-        elif step == 4:
+        elif step == 5:
             available_modes_dict = MODEL_MODES.get(selected_model["name"], DEFAULT_MODES)
             mode_names = list(available_modes_dict.keys())
-            res = select_from_list(stdscr, f"5/5: Select Mode for {selected_model['name']}:", mode_names)
+            res = select_from_list(stdscr, f"5/6: Select Mode for {selected_model['name']}:", mode_names)
             if res == "EXIT": return
             if res == "BACK": step -= 1; continue
 
@@ -247,11 +278,11 @@ def main(stdscr):
             gen_params = available_modes_dict[selected_mode_name]
             step += 1 # Breaks the while loop
 
-   # Check if vision model (for mmproj parameter)
+    # Check if vision model (for mmproj parameter)
     is_vision_model = gen_params.get("mmproj", False)
 
     # --- Step 6: Write to Makefile Config ---
-    # (This code is only reached if the user successfully navigates all 5 steps)
+    # (This code is only reached if the user successfully navigates all 6 steps)
     base_models_dir = "/models" if os.path.isdir("/models") else "./models"
 
     with open("config.mk", "w") as f:
@@ -261,6 +292,11 @@ def main(stdscr):
         f.write(f"LOCAL_DIR = {base_models_dir}/{selected_model['repo']}\n")
         f.write(f"CTX_SIZE = {selected_ctx}\n")
         f.write(f"MODE = {selected_mode_name}\n")
+
+        # Write hardware profile parameters
+        f.write(f"GPU_LAYERS = {selected_profile_data['gpu_layers']}\n")
+        f.write(f"SPLIT_MODE = {selected_profile_data['split_mode']}\n")
+        f.write(f"TENSOR_SPLIT = {selected_profile_data['tensor_split']}\n")
 
         # Write generation parameters
         f.write(f"TEMP = {gen_params.get('temp', 0.8)}\n")
@@ -275,20 +311,24 @@ def main(stdscr):
     # Display confirmation screen
     stdscr.clear()
     stdscr.addstr(0, 0, "Saved Configuration to config.mk!", curses.A_BOLD)
-    stdscr.addstr(2, 0, f"Model   : {selected_model['name']}")
-    stdscr.addstr(3, 0, f"Class   : {selected_bit}")
-    stdscr.addstr(4, 0, f"Quant   : {selected_quant}")
-    stdscr.addstr(5, 0, f"Context : {selected_ctx}")
-    stdscr.addstr(6, 0, f"Mode    : {selected_mode_name}")
+    stdscr.addstr(2, 0, f"Profile : {selected_profile_name}")
+    stdscr.addstr(3, 0, f"Model   : {selected_model['name']}")
+    stdscr.addstr(4, 0, f"Class   : {selected_bit}")
+    stdscr.addstr(5, 0, f"Quant   : {selected_quant}")
+    stdscr.addstr(6, 0, f"Context : {selected_ctx}")
+    stdscr.addstr(7, 0, f"Mode    : {selected_mode_name}")
 
-    stdscr.addstr(8, 0, "Derived Parameters:", curses.A_UNDERLINE)
-    stdscr.addstr(9, 0, f"Temp: {gen_params['temp']} | Top-P: {gen_params['top_p']} | Min-P: {gen_params['min_p']} | Rep-Pen: {gen_params['rep_pen']}")
+    stdscr.addstr(9, 0, "Derived Parameters:", curses.A_UNDERLINE)
+    stdscr.addstr(10, 0, f"Temp: {gen_params['temp']} | Top-P: {gen_params['top_p']} | Min-P: {gen_params['min_p']} | Rep-Pen: {gen_params['rep_pen']}")
+    
+    extra_line_offset = 11
     if gen_params.get("extra"):
-        stdscr.addstr(10, 0, f"Extra: {gen_params['extra']}")
+        stdscr.addstr(extra_line_offset, 0, f"Extra: {gen_params['extra']}")
+        extra_line_offset += 1
     if is_vision_model:
-        stdscr.addstr(11, 0, "Vision Model: Yes (mmproj will be used)")
+        stdscr.addstr(extra_line_offset, 0, "Vision Model: Yes (mmproj will be used)")
 
-    stdscr.addstr(13, 0, "Press any key to exit and run 'make download' or 'make run-server'...")
+    stdscr.addstr(extra_line_offset + 2, 0, "Press any key to exit and run 'make download' or 'make run-server'...")
     stdscr.refresh()
     stdscr.getch()
 
