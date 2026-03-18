@@ -14,13 +14,13 @@ endif
 # Detect OS
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
-    # macOS (Apple Silicon/Metal) settings
-    SETUP_CMD   = brew update && brew install cmake curl python3
-    CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=ON
+	# macOS (Apple Silicon/Metal) settings
+	SETUP_CMD   = brew update && brew install cmake curl python3
+	CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=ON
 else
-    # Linux (Debian/CUDA) settings
-    SETUP_CMD   = $(SUDO) apt-get update && $(SUDO) apt-get install pciutils build-essential cmake curl libcurl4-openssl-dev python3 python3-venv -y
-    CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON
+	# Linux (Debian/CUDA) settings
+	SETUP_CMD   = $(SUDO) apt-get update && $(SUDO) apt-get install pciutils build-essential git cmake curl libcurl4-openssl-dev python3 python3-venv -y
+	CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON
 endif
 
 # Check if absolute /models exists, otherwise use local ./models
@@ -28,7 +28,7 @@ BASE_MODELS_DIR := $(shell test -d /models && echo /models || echo ./models)
 
 LLAMA_PATH ?= ./llama.cpp
 VENV_DIR   ?= .venv
-HF_CLI     ?= $(VENV_DIR)/bin/hf
+HF_CLI     ?= hf
 
 # Fallbacks in case config.mk hasn't been generated yet
 REPO        ?= unsloth/Qwen3.5-122B-A10B-GGUF
@@ -39,6 +39,8 @@ MODE        ?= non-thinking
 CTX_SIZE    ?= 16384
 
 # Hardware Profile Fallbacks
+EXEC_MODE      ?= native
+DOCKERFILE_EXT ?= Dockerfile.cuda
 GPU_LAYERS   ?= 99
 SPLIT_MODE   ?= layer
 TENSOR_SPLIT ?= 0
@@ -59,6 +61,10 @@ MODEL_FILE = $(shell find $(LOCAL_DIR) -name "*$(QUANT)*.gguf" 2>/dev/null | sor
 # For vision models, find the mmproj-F16.gguf file
 MMPROJ_FILE = $(shell find $(LOCAL_DIR) -name "mmproj-F16.gguf" 2>/dev/null | sort | head -n 1)
 
+# Docker Configuration
+DOCKER_IMAGE_NAME ?= unsloth-llm-$(EXEC_MODE)
+DOCKER_PORT       ?= 8080
+
 # ==========================================
 # 2. Inference Parameters
 # ==========================================
@@ -76,9 +82,9 @@ BENCH_ARGS  ?= -p 512,1024 -n 128,256 -r 1
 ACTIVE_PARAMS = --temp $(TEMP) --top-p $(TOP_P) --top-k $(TOP_K) --min-p $(MIN_P) --repeat-penalty $(REP_PENALTY) --presence-penalty $(PRES_PEN) $(EXTRA_ARGS)
 
 # ==========================================
-# 3. Targets
+# 3. Main Targets & Routers
 # ==========================================
-.PHONY: help config download run-cli run-server run-bench setup build clean check-model
+.PHONY: help config download run-cli run-server run-bench setup build clean check-model native-cli native-server docker-build docker-cli docker-server docker-bench
 
 default: help
 
@@ -93,7 +99,7 @@ help:
 	@echo "  make run-bench  - Run performance benchmarks"
 	@echo "====================================================================="
 	@echo "Current Config: $(REPO) | Quant: $(QUANT) | Mode: $(MODE)"
-	@echo "Hardware Profile: Layers $(GPU_LAYERS) | Split $(SPLIT_MODE) | TensorSplit $(TENSOR_SPLIT)"
+	@echo "Hardware Profile: $(EXEC_MODE) Execution | Layers $(GPU_LAYERS) | Split $(SPLIT_MODE) | TensorSplit $(TENSOR_SPLIT)"
 	@echo "Params: Temp $(TEMP), Top-P $(TOP_P), Top-K $(TOP_K), Min-P $(MIN_P), RepPen $(REP_PENALTY), PresPen $(PRES_PEN)"
 	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
 		echo "Vision Model: Yes (mmproj: $(MMPROJ_FILE))" ; \
@@ -101,24 +107,10 @@ help:
 		echo "Vision Model: No" ; \
 	fi
 
-# --- Safeguard ---
-check-model:
-	@if [ -z "$(MODEL_FILE)" ]; then \
-		echo "ERROR: Model file not found in $(LOCAL_DIR)."; \
-		echo "Please run 'make download' first."; \
-		exit 1; \
-	fi
-
-# --- UI Target ---
 config:
 	@python3 config_menu.py
 
-# --- Execution Targets ---
 download:
-	@if [ ! -d "$(VENV_DIR)" ]; then \
-		echo "ERROR: Virtual environment not found. Run 'make setup' first."; \
-		exit 1; \
-	fi
 	@echo "Downloading $(QUANT) weights from $(REPO) to $(LOCAL_DIR)..."
 	env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "$(INCLUDE)" --local-dir $(LOCAL_DIR)
 	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
@@ -127,9 +119,38 @@ download:
 	fi
 
 run-cli: check-model
-	@echo "Starting CLI using $(MODEL_FILE) in $(MODE) mode..."
+ifeq ($(EXEC_MODE),docker)
+	@echo "Routing to Docker execution..."
+	@$(MAKE) docker-cli
+else
+	@echo "Routing to Native Metal/CUDA execution..."
+	@$(MAKE) native-cli
+endif
+
+run-server: check-model
+ifeq ($(EXEC_MODE),docker)
+	@echo "Routing to Docker execution..."
+	@$(MAKE) docker-server
+else
+	@echo "Routing to Native Metal/CUDA execution..."
+	@$(MAKE) native-server
+endif
+
+run-bench: check-model
+ifeq ($(EXEC_MODE),docker)
+	@echo "Routing to Docker execution..."
+	@$(MAKE) docker-bench
+else
+	@echo "Routing to Native Metal/CUDA execution..."
+	@$(MAKE) native-bench
+endif
+
+# ==========================================
+# 4. Native Execution Targets
+# ==========================================
+native-cli: check-model
+	@echo "Starting Native CLI using $(MODEL_FILE) in $(MODE) mode..."
 	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
-		echo "Using mmproj: $(MMPROJ_FILE)" ; \
 		echo "Command: $(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS)" ; \
 		$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS) ; \
 	else \
@@ -137,10 +158,9 @@ run-cli: check-model
 		$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS) ; \
 	fi
 
-run-server: check-model
-	@echo "Starting Server using $(MODEL_FILE) in $(MODE) mode..."
+native-server: check-model
+	@echo "Starting Native Server using $(MODEL_FILE) in $(MODE) mode..."
 	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
-		echo "Using mmproj: $(MMPROJ_FILE)" ; \
 		echo "Command: $(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) --alias \"$(REPO)\" --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS)" ; \
 		$(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) --alias "$(REPO)" --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS) ; \
 	else \
@@ -148,16 +168,52 @@ run-server: check-model
 		$(LLAMA_PATH)/llama-server -m $(MODEL_FILE) --alias "$(REPO)" --host 0.0.0.0 $(GPU_ARGS) $(CTX_ARGS) $(ACTIVE_PARAMS) ; \
 	fi
 
-run-bench: check-model
-	@echo "Running Benchmarks on $(MODEL_FILE)..."
-	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
-		echo "Using mmproj: $(MMPROJ_FILE)" ; \
-		$(LLAMA_PATH)/llama-bench -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) $(GPU_ARGS) $(BENCH_ARGS) ; \
-	else \
-		$(LLAMA_PATH)/llama-bench -m $(MODEL_FILE) $(GPU_ARGS) $(BENCH_ARGS) ; \
+native-bench: check-model
+	@echo "Running Native Benchmarks on $(MODEL_FILE)..."
+	$(LLAMA_PATH)/llama-bench -m $(MODEL_FILE) $(GPU_ARGS) $(BENCH_ARGS)
+
+# ==========================================
+# 5. Docker Wrapper Targets
+# ==========================================
+docker-build:
+	@if [ "$(DOCKERFILE_EXT)" = "none" ]; then \
+		echo "ERROR: Current profile is set to native execution only." ; exit 1 ; \
+	fi
+	@echo "Building Docker image using $(DOCKERFILE_EXT)..."
+	docker build -f $(DOCKERFILE_EXT) -t $(DOCKER_IMAGE_NAME) .
+
+docker-cli: docker-build
+	@echo "Running CLI in Docker..."
+	docker run --runtime nvidia -it --rm \
+		-v $(PWD)/models:/app/models \
+		-v $(PWD)/config.mk:/app/config.mk \
+		$(DOCKER_IMAGE_NAME) make native-cli
+
+docker-server: docker-build
+	@echo "Running Server in Docker on port $(DOCKER_PORT)..."
+	docker run --runtime nvidia -it --rm \
+		-p $(DOCKER_PORT):8080 \
+		-v $(PWD)/models:/app/models \
+		-v $(PWD)/config.mk:/app/config.mk \
+		$(DOCKER_IMAGE_NAME) make native-server
+
+docker-bench: docker-build
+	@echo "Running Benchmarks in Docker..."
+	docker run --runtime nvidia -it --rm \
+		-v $(PWD)/models:/app/models \
+		-v $(PWD)/config.mk:/app/config.mk \
+		$(DOCKER_IMAGE_NAME) make native-bench
+
+# ==========================================
+# 6. Utilities
+# ==========================================
+check-model:
+	@if [ -z "$(MODEL_FILE)" ]; then \
+		echo "ERROR: Model file not found in $(LOCAL_DIR)."; \
+		echo "Please run 'make download' first."; \
+		exit 1; \
 	fi
 
-# --- Build Targets ---
 setup:
 	@echo "Installing system dependencies..."
 	$(SETUP_CMD)

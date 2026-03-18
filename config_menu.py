@@ -5,19 +5,32 @@ import os
 # System-specific settings for different hardware in your homelab.
 MACHINE_PROFILES = {
     "4x RTX 3090 - Max Performance": {
-        "gpu_layers": 99, 
+        "gpu_layers": 99,
         "split_mode": "layer",
-        "tensor_split": "10,11,11,11"  # Balanced for 4 GPUs, lighter on Device 0
+        "tensor_split": "10,11,11,11",
+        "exec_mode": "docker",
+        "dockerfile": "Dockerfile.cuda"
     },
     "4x RTX 3090 - Hybrid (CPU Offload)": {
-        "gpu_layers": 40, 
+        "gpu_layers": 40,
         "split_mode": "layer",
-        "tensor_split": "0,0,0,0"     # Use default splitting for hybrid
+        "tensor_split": "0,0,0,0",
+        "exec_mode": "docker",
+        "dockerfile": "Dockerfile.cuda"
+    },
+    "Jetson Orin AGX": {
+        "gpu_layers": 99,
+        "split_mode": "none",
+        "tensor_split": "0",
+        "exec_mode": "docker",
+        "dockerfile": "Dockerfile.jetson"
     },
     "Mac Mini M4 (24GB Unified)": {
-        "gpu_layers": 99, 
+        "gpu_layers": 99,
         "split_mode": "none",
-        "tensor_split": "0"
+        "tensor_split": "0",
+        "exec_mode": "native",
+        "dockerfile": "none"
     }
 }
 
@@ -297,6 +310,8 @@ def main(stdscr):
         f.write(f"GPU_LAYERS = {selected_profile_data['gpu_layers']}\n")
         f.write(f"SPLIT_MODE = {selected_profile_data['split_mode']}\n")
         f.write(f"TENSOR_SPLIT = {selected_profile_data['tensor_split']}\n")
+        f.write(f"EXEC_MODE = {selected_profile_data['exec_mode']}\n")
+        f.write(f"DOCKERFILE_EXT = {selected_profile_data['dockerfile']}\n")
 
         # Write generation parameters
         f.write(f"TEMP = {gen_params.get('temp', 0.8)}\n")
