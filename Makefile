@@ -111,12 +111,13 @@ config:
 	@python3 config_menu.py
 
 download:
-	@echo "Downloading $(QUANT) weights from $(REPO) to $(LOCAL_DIR)..."
-	env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "$(INCLUDE)" --local-dir $(LOCAL_DIR)
-	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
-		echo "Downloading mmproj-F16.gguf for vision model..." ; \
-		env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "mmproj-F16.gguf" --local-dir $(LOCAL_DIR) ; \
-	fi
+ifeq ($(EXEC_MODE),docker)
+	@echo "Routing download to Docker execution..."
+	@$(MAKE) docker-download
+else
+	@echo "Routing download to Native execution..."
+	@$(MAKE) native-download
+endif
 
 run-cli: check-model
 ifeq ($(EXEC_MODE),docker)
@@ -148,6 +149,14 @@ endif
 # ==========================================
 # 4. Native Execution Targets
 # ==========================================
+native-download:
+	@echo "Downloading $(QUANT) weights from $(REPO) to $(LOCAL_DIR)..."
+	env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "$(INCLUDE)" --local-dir $(LOCAL_DIR)
+	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
+		echo "Downloading mmproj-F16.gguf for vision model..." ; \
+		env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "mmproj-F16.gguf" --local-dir $(LOCAL_DIR) ; \
+	fi
+
 native-cli: check-model
 	@echo "Starting Native CLI using $(MODEL_FILE) in $(MODE) mode..."
 	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
@@ -175,6 +184,13 @@ native-bench: check-model
 # ==========================================
 # 5. Docker Wrapper Targets
 # ==========================================
+docker-download: docker-build
+	@echo "Running Download in Docker..."
+	docker run -it --rm \
+		-v $(PWD)/models:/app/models \
+		-v $(PWD)/config.mk:/app/config.mk \
+		$(DOCKER_IMAGE_NAME) make native-download
+
 docker-build:
 	@if [ "$(DOCKERFILE_EXT)" = "none" ]; then \
 		echo "ERROR: Current profile is set to native execution only." ; exit 1 ; \
