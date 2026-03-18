@@ -28,16 +28,17 @@ BASE_MODELS_DIR := $(shell test -d /models && echo /models || echo ./models)
 
 LLAMA_PATH ?= ./llama.cpp
 VENV_DIR   ?= .venv
+
 # --- Path Discovery for HF CLI ---
 # 1. Check for modern huggingface-cli in the virtual environment
 ifneq ($(wildcard $(VENV_DIR)/bin/huggingface-cli),)
-    HF_CLI ?= $(VENV_DIR)/bin/huggingface-cli
+	HF_CLI ?= $(VENV_DIR)/bin/huggingface-cli
 # 2. Check for the legacy 'hf' binary in the virtual environment
 else ifneq ($(wildcard $(VENV_DIR)/bin/hf),)
-    HF_CLI ?= $(VENV_DIR)/bin/hf
+	HF_CLI ?= $(VENV_DIR)/bin/hf
 # 3. Fallback to global system PATH
 else
-    HF_CLI ?= huggingface-cli
+	HF_CLI ?= huggingface-cli
 endif
 
 # Fallbacks in case config.mk hasn't been generated yet
@@ -94,7 +95,7 @@ ACTIVE_PARAMS = --temp $(TEMP) --top-p $(TOP_P) --top-k $(TOP_K) --min-p $(MIN_P
 # ==========================================
 # 3. Main Targets & Routers
 # ==========================================
-.PHONY: help config download run-cli run-server run-bench setup build clean check-model native-cli native-server docker-build docker-cli docker-server docker-bench
+.PHONY: help config download run-cli run-server run-bench setup build clean check-model native-cli native-server native-bench docker-build docker-cli docker-server docker-bench docker-download native-download
 
 default: help
 
@@ -179,6 +180,16 @@ native-download:
 		env HF_HUB_ENABLE_HF_TRANSFER=1 $$CLI download $(REPO) --include "mmproj-F16.gguf" --local-dir $(LOCAL_DIR) ; \
 	fi
 
+native-cli: check-model
+	@echo "Starting Native CLI using $(MODEL_FILE) in $(MODE) mode..."
+	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
+		echo "Command: $(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS)" ; \
+		$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS) ; \
+	else \
+		echo "Command: $(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS)" ; \
+		$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS) ; \
+	fi
+
 native-server: check-model
 	@echo "Starting Native Server using $(MODEL_FILE) in $(MODE) mode..."
 	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
@@ -201,6 +212,7 @@ docker-download: docker-build
 	docker run -it --rm \
 		-v $(PWD)/models:/app/models \
 		-v $(PWD)/config.mk:/app/config.mk \
+		-v $(PWD)/Makefile:/app/Makefile \
 		$(DOCKER_IMAGE_NAME) make native-download
 
 docker-build:
@@ -215,6 +227,7 @@ docker-cli: docker-build
 	docker run --runtime nvidia -it --rm \
 		-v $(PWD)/models:/app/models \
 		-v $(PWD)/config.mk:/app/config.mk \
+		-v $(PWD)/Makefile:/app/Makefile \
 		$(DOCKER_IMAGE_NAME) make native-cli
 
 docker-server: docker-build
@@ -223,6 +236,7 @@ docker-server: docker-build
 		-p $(DOCKER_PORT):8080 \
 		-v $(PWD)/models:/app/models \
 		-v $(PWD)/config.mk:/app/config.mk \
+		-v $(PWD)/Makefile:/app/Makefile \
 		$(DOCKER_IMAGE_NAME) make native-server
 
 docker-bench: docker-build
@@ -230,6 +244,7 @@ docker-bench: docker-build
 	docker run --runtime nvidia -it --rm \
 		-v $(PWD)/models:/app/models \
 		-v $(PWD)/config.mk:/app/config.mk \
+		-v $(PWD)/Makefile:/app/Makefile \
 		$(DOCKER_IMAGE_NAME) make native-bench
 
 # ==========================================
