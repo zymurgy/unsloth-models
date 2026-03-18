@@ -28,7 +28,17 @@ BASE_MODELS_DIR := $(shell test -d /models && echo /models || echo ./models)
 
 LLAMA_PATH ?= ./llama.cpp
 VENV_DIR   ?= .venv
-HF_CLI     ?= hf
+# --- Path Discovery for HF CLI ---
+# 1. Check for modern huggingface-cli in the virtual environment
+ifneq ($(wildcard $(VENV_DIR)/bin/huggingface-cli),)
+    HF_CLI ?= $(VENV_DIR)/bin/huggingface-cli
+# 2. Check for the legacy 'hf' binary in the virtual environment
+else ifneq ($(wildcard $(VENV_DIR)/bin/hf),)
+    HF_CLI ?= $(VENV_DIR)/bin/hf
+# 3. Fallback to global system PATH
+else
+    HF_CLI ?= huggingface-cli
+endif
 
 # Fallbacks in case config.mk hasn't been generated yet
 REPO        ?= unsloth/Qwen3.5-122B-A10B-GGUF

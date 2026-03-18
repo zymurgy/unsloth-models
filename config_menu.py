@@ -186,24 +186,66 @@ for model in MODELS:
 # --- UI Functions ---
 def draw_menu(stdscr, title, options, current_row, show_back):
     stdscr.clear()
-    stdscr.addstr(0, 0, title, curses.A_BOLD | curses.A_UNDERLINE)
-    for idx, option in enumerate(options):
+    
+    # Get current terminal dimensions
+    height, width = stdscr.getmaxyx()
+    
+    # Failsafe for extremely tiny terminals
+    if height < 10 or width < 40:
+        stdscr.addstr(0, 0, "Terminal too small!", curses.A_BOLD)
+        stdscr.refresh()
+        return
+
+    # Draw Title (truncated to fit screen width)
+    stdscr.addstr(0, 0, title[:width-1], curses.A_BOLD | curses.A_UNDERLINE)
+
+    # --- Pagination / Scrolling Logic ---
+    # Header takes 2 lines, Footer takes 4 lines. 
+    # Calculate how many options we can actually fit.
+    max_options_to_show = height - 6 
+    
+    # Calculate our sliding window
+    start_row = max(0, current_row - (max_options_to_show // 2))
+    
+    # Clamp the window to the bottom of the list if we are near the end
+    if start_row + max_options_to_show > len(options):
+        start_row = max(0, len(options) - max_options_to_show)
+        
+    end_row = min(len(options), start_row + max_options_to_show)
+
+    # Draw "Scroll Up" indicator if needed
+    if start_row > 0:
+        stdscr.addstr(1, 4, "↑ ...more...", curses.A_DIM)
+
+    # Draw the visible options
+    for idx in range(start_row, end_row):
+        option = options[idx]
         x = 2
-        y = 2 + idx
+        y = 2 + (idx - start_row)
+        
+        # Truncate text so it doesn't wrap and cause another crash
+        display_text = f"> {option}" if idx == current_row else f"  {option}"
+        display_text = display_text[:width-1]
+
         if idx == current_row:
             stdscr.attron(curses.color_pair(1))
-            stdscr.addstr(y, x, f"> {option}")
+            stdscr.addstr(y, x, display_text)
             stdscr.attroff(curses.color_pair(1))
         else:
-            stdscr.addstr(y, x, f"  {option}")
+            stdscr.addstr(y, x, display_text)
 
-    # Draw Footer
-    footer_y = len(options) + 4
-    stdscr.addstr(footer_y, 0, "[ENTER] Select  [UP/DOWN] Navigate", curses.A_DIM)
+    # Draw "Scroll Down" indicator if needed
+    if end_row < len(options):
+        stdscr.addstr(2 + (end_row - start_row), 4, "↓ ...more...", curses.A_DIM)
+
+    # --- Draw Footer safely at the bottom ---
+    footer_y = height - 3
+    stdscr.addstr(footer_y, 0, "[ENTER] Select  [UP/DOWN] Navigate"[:width-1], curses.A_DIM)
+    
     if show_back:
-        stdscr.addstr(footer_y + 1, 0, "[B] Back        [Q / ESC] Quit without saving", curses.A_DIM)
+        stdscr.addstr(footer_y + 1, 0, "[B] Back        [Q / ESC] Quit without saving"[:width-1], curses.A_DIM)
     else:
-        stdscr.addstr(footer_y + 1, 0, "[Q / ESC] Quit without saving", curses.A_DIM)
+        stdscr.addstr(footer_y + 1, 0, "[Q / ESC] Quit without saving"[:width-1], curses.A_DIM)
 
     stdscr.refresh()
 
