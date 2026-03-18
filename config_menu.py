@@ -45,6 +45,7 @@ MODELS = [
     {"name": "GPT OSS 20B", "repo": "unsloth/gpt-oss-20b-GGUF"},
     {"name": "GPT OSS 120B", "repo": "unsloth/gpt-oss-120b-GGUF"},
     {"name": "MiniMax M2.5", "repo": "unsloth/MiniMax-M2.5-GGUF"},
+    {"name": "Mistral Small 4 119B", "repo": "unsloth/Mistral-Small-4-119B-2603-GGUF"},
     {"name": "NVIDIA Nemotron 3 Super 120B", "repo": "unsloth/NVIDIA-Nemotron-3-Super-120B-A12B-GGUF"},
     {"name": "NVIDIA Nemotron 3 Nano 30B", "repo": "unsloth/Nemotron-3-Nano-30B-A3B-GGUF"},
     {"name": "Qwen3.5 0.8B", "repo": "unsloth/Qwen3.5-0.8B-GGUF"},
