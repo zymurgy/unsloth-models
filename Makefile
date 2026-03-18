@@ -160,21 +160,23 @@ endif
 # 4. Native Execution Targets
 # ==========================================
 native-download:
-	@echo "Downloading $(QUANT) weights from $(REPO) to $(LOCAL_DIR)..."
-	env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "$(INCLUDE)" --local-dir $(LOCAL_DIR)
-	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
-		echo "Downloading mmproj-F16.gguf for vision model..." ; \
-		env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "mmproj-F16.gguf" --local-dir $(LOCAL_DIR) ; \
+	@if [ ! -d "$(VENV_DIR)" ]; then \
+		echo "Virtual environment not found. Running setup first..."; \
+		$(MAKE) setup; \
 	fi
-
-native-cli: check-model
-	@echo "Starting Native CLI using $(MODEL_FILE) in $(MODE) mode..."
-	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
-		echo "Command: $(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS)" ; \
-		$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) --mmproj $(MMPROJ_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS) ; \
+	@echo "Determining Hugging Face CLI path..."
+	@if [ -f "$(VENV_DIR)/bin/huggingface-cli" ]; then \
+		CLI="$(VENV_DIR)/bin/huggingface-cli"; \
+	elif [ -f "$(VENV_DIR)/bin/hf" ]; then \
+		CLI="$(VENV_DIR)/bin/hf"; \
 	else \
-		echo "Command: $(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS)" ; \
-		$(LLAMA_PATH)/llama-cli -m $(MODEL_FILE) $(GPU_ARGS) $(CTX_ARGS) $(CLI_ARGS) $(ACTIVE_PARAMS) ; \
+		CLI="huggingface-cli"; \
+	fi; \
+	echo "Downloading $(QUANT) weights from $(REPO) to $(LOCAL_DIR) using $$CLI..."; \
+	env HF_HUB_ENABLE_HF_TRANSFER=1 $$CLI download $(REPO) --include "$(INCLUDE)" --local-dir $(LOCAL_DIR); \
+	if [ "$(IS_VISION_MODEL)" = "true" ]; then \
+		echo "Downloading mmproj-F16.gguf for vision model..." ; \
+		env HF_HUB_ENABLE_HF_TRANSFER=1 $$CLI download $(REPO) --include "mmproj-F16.gguf" --local-dir $(LOCAL_DIR) ; \
 	fi
 
 native-server: check-model
