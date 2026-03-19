@@ -8,15 +8,15 @@ MACHINE_PROFILES = {
         "gpu_layers": 99,
         "split_mode": "layer",
         "tensor_split": "10,11,11,11",
-        "exec_mode": "docker",
-        "dockerfile": "Dockerfile.cuda"
+        "exec_mode": "native",
+        "dockerfile": "none"
     },
     "4x RTX 3090 - Hybrid (CPU Offload)": {
         "gpu_layers": 40,
         "split_mode": "layer",
         "tensor_split": "0,0,0,0",
-        "exec_mode": "docker",
-        "dockerfile": "Dockerfile.cuda"
+        "exec_mode": "native",
+        "dockerfile": "none"
     },
     "DGX Spark": {
         "gpu_layers": 99,
