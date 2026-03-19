@@ -18,6 +18,13 @@ MACHINE_PROFILES = {
         "exec_mode": "docker",
         "dockerfile": "Dockerfile.cuda"
     },
+    "DGX Spark": {
+        "gpu_layers": 99,
+        "split_mode": "none",
+        "tensor_split": "0",
+        "exec_mode": "docker",
+        "dockerfile": "Dockerfile.cuda"
+    },
     "Jetson Orin AGX": {
         "gpu_layers": 99,
         "split_mode": "none",
@@ -186,10 +193,10 @@ for model in MODELS:
 # --- UI Functions ---
 def draw_menu(stdscr, title, options, current_row, show_back):
     stdscr.clear()
-    
+
     # Get current terminal dimensions
     height, width = stdscr.getmaxyx()
-    
+
     # Failsafe for extremely tiny terminals
     if height < 10 or width < 40:
         stdscr.addstr(0, 0, "Terminal too small!", curses.A_BOLD)
@@ -200,30 +207,22 @@ def draw_menu(stdscr, title, options, current_row, show_back):
     stdscr.addstr(0, 0, title[:width-1], curses.A_BOLD | curses.A_UNDERLINE)
 
     # --- Pagination / Scrolling Logic ---
-    # Header takes 2 lines, Footer takes 4 lines. 
-    # Calculate how many options we can actually fit.
-    max_options_to_show = height - 6 
-    
-    # Calculate our sliding window
+    max_options_to_show = height - 6
     start_row = max(0, current_row - (max_options_to_show // 2))
-    
-    # Clamp the window to the bottom of the list if we are near the end
+
     if start_row + max_options_to_show > len(options):
         start_row = max(0, len(options) - max_options_to_show)
-        
+
     end_row = min(len(options), start_row + max_options_to_show)
 
-    # Draw "Scroll Up" indicator if needed
     if start_row > 0:
         stdscr.addstr(1, 4, "↑ ...more...", curses.A_DIM)
 
-    # Draw the visible options
     for idx in range(start_row, end_row):
         option = options[idx]
         x = 2
         y = 2 + (idx - start_row)
-        
-        # Truncate text so it doesn't wrap and cause another crash
+
         display_text = f"> {option}" if idx == current_row else f"  {option}"
         display_text = display_text[:width-1]
 
@@ -234,14 +233,13 @@ def draw_menu(stdscr, title, options, current_row, show_back):
         else:
             stdscr.addstr(y, x, display_text)
 
-    # Draw "Scroll Down" indicator if needed
     if end_row < len(options):
         stdscr.addstr(2 + (end_row - start_row), 4, "↓ ...more...", curses.A_DIM)
 
     # --- Draw Footer safely at the bottom ---
     footer_y = height - 3
     stdscr.addstr(footer_y, 0, "[ENTER] Select  [UP/DOWN] Navigate"[:width-1], curses.A_DIM)
-    
+
     if show_back:
         stdscr.addstr(footer_y + 1, 0, "[B] Back        [Q / ESC] Quit without saving"[:width-1], curses.A_DIM)
     else:
@@ -269,6 +267,44 @@ def select_from_list(stdscr, title, options, show_back=True):
         elif key in [ord('q'), ord('Q'), 27]: # 27 is the ESC key
             return "EXIT"
 
+def get_text_input(stdscr, title, default_text):
+    """Custom text input loop to handle backspace and exit keys gracefully."""
+    curses.curs_set(1)
+    input_chars = []
+    
+    while True:
+        stdscr.clear()
+        height, width = stdscr.getmaxyx()
+        
+        stdscr.addstr(0, 0, title[:width-1], curses.A_BOLD | curses.A_UNDERLINE)
+        stdscr.addstr(2, 0, f"Default: {default_text}")
+        
+        # Display current input
+        current_str = "".join(input_chars)
+        stdscr.addstr(4, 0, "Path: " + current_str)
+        
+        # Footer
+        footer_y = height - 2
+        stdscr.addstr(footer_y, 0, "[ENTER] Confirm  [B/Backspace] Back (if empty)  [ESC] Quit", curses.A_DIM)
+        
+        stdscr.refresh()
+        key = stdscr.getch()
+        
+        if key in [curses.KEY_ENTER, 10, 13]:
+            curses.curs_set(0)
+            return current_str if current_str else default_text
+        elif key in [27]: # ESC
+            curses.curs_set(0)
+            return "EXIT"
+        elif key in [curses.KEY_BACKSPACE, 127, 8]:
+            if len(input_chars) > 0:
+                input_chars.pop()
+            else:
+                curses.curs_set(0)
+                return "BACK"
+        elif 32 <= key <= 126: # Printable ascii characters
+            input_chars.append(chr(key))
+
 def main(stdscr):
     step = 0
 
@@ -281,12 +317,13 @@ def main(stdscr):
     selected_ctx = None
     selected_mode_name = None
     gen_params = None
+    base_models_dir = None
 
     # State Machine Loop
-    while step < 6:
+    while step < 7:
         if step == 0:
             profiles = list(MACHINE_PROFILES.keys())
-            res = select_from_list(stdscr, "0/6: Select Machine Profile:", profiles, show_back=False)
+            res = select_from_list(stdscr, "0/7: Select Machine Profile:", profiles, show_back=False)
             if res == "EXIT": return
             selected_profile_name = profiles[res]
             selected_profile_data = MACHINE_PROFILES[selected_profile_name]
@@ -294,7 +331,7 @@ def main(stdscr):
 
         elif step == 1:
             model_names = [m["name"] for m in MODELS]
-            res = select_from_list(stdscr, f"1/6: Select a Model (Profile: {selected_profile_name}):", model_names)
+            res = select_from_list(stdscr, f"1/7: Select a Model (Profile: {selected_profile_name}):", model_names)
             if res == "EXIT": return
             if res == "BACK": step -= 1; continue
             selected_model = MODELS[res]
@@ -302,7 +339,7 @@ def main(stdscr):
 
         elif step == 2:
             bit_depths = list(QUANT_GROUPS.keys())
-            res = select_from_list(stdscr, f"2/6: Select Bit-Depth for {selected_model['name']}:", bit_depths)
+            res = select_from_list(stdscr, f"2/7: Select Bit-Depth for {selected_model['name']}:", bit_depths)
             if res == "EXIT": return
             if res == "BACK": step -= 1; continue
             selected_bit = bit_depths[res]
@@ -310,14 +347,14 @@ def main(stdscr):
 
         elif step == 3:
             specific_quants = QUANT_GROUPS[selected_bit]
-            res = select_from_list(stdscr, f"3/6: Select Specific {selected_bit} Quantization:", specific_quants)
+            res = select_from_list(stdscr, f"3/7: Select Specific {selected_bit} Quantization:", specific_quants)
             if res == "EXIT": return
             if res == "BACK": step -= 1; continue
             selected_quant = specific_quants[res]
             step += 1
 
         elif step == 4:
-            res = select_from_list(stdscr, "4/6: Select Context Size:", CONTEXT_SIZES)
+            res = select_from_list(stdscr, "4/7: Select Context Size:", CONTEXT_SIZES)
             if res == "EXIT": return
             if res == "BACK": step -= 1; continue
             selected_ctx = CONTEXT_SIZES[res]
@@ -326,25 +363,30 @@ def main(stdscr):
         elif step == 5:
             available_modes_dict = MODEL_MODES.get(selected_model["name"], DEFAULT_MODES)
             mode_names = list(available_modes_dict.keys())
-            res = select_from_list(stdscr, f"5/6: Select Mode for {selected_model['name']}:", mode_names)
+            res = select_from_list(stdscr, f"5/7: Select Mode for {selected_model['name']}:", mode_names)
             if res == "EXIT": return
             if res == "BACK": step -= 1; continue
 
             selected_mode_name = mode_names[res]
             gen_params = available_modes_dict[selected_mode_name]
+            step += 1 
+
+        elif step == 6:
+            res = get_text_input(stdscr, "6/7: Enter Base Models Directory (Press ENTER for default):", "./models")
+            if res == "EXIT": return
+            if res == "BACK": step -= 1; continue
+            base_models_dir = res
             step += 1 # Breaks the while loop
 
     # Check if vision model (for mmproj parameter)
     is_vision_model = gen_params.get("mmproj", False)
 
-    # --- Step 6: Write to Makefile Config ---
-    # (This code is only reached if the user successfully navigates all 6 steps)
-    base_models_dir = "/models" if os.path.isdir("/models") else "./models"
-
+    # --- Step 7: Write to Makefile Config ---
     with open("config.mk", "w") as f:
         f.write(f"REPO = {selected_model['repo']}\n")
         f.write(f"QUANT = {selected_quant}\n")
         f.write(f"INCLUDE = \"*{selected_quant}*\"\n")
+        f.write(f"HOST_MODELS_DIR = {base_models_dir}\n")
         f.write(f"LOCAL_DIR = {base_models_dir}/{selected_model['repo']}\n")
         f.write(f"CTX_SIZE = {selected_ctx}\n")
         f.write(f"MODE = {selected_mode_name}\n")
@@ -375,11 +417,12 @@ def main(stdscr):
     stdscr.addstr(5, 0, f"Quant   : {selected_quant}")
     stdscr.addstr(6, 0, f"Context : {selected_ctx}")
     stdscr.addstr(7, 0, f"Mode    : {selected_mode_name}")
+    stdscr.addstr(8, 0, f"Path    : {base_models_dir}")
 
-    stdscr.addstr(9, 0, "Derived Parameters:", curses.A_UNDERLINE)
-    stdscr.addstr(10, 0, f"Temp: {gen_params['temp']} | Top-P: {gen_params['top_p']} | Min-P: {gen_params['min_p']} | Rep-Pen: {gen_params['rep_pen']}")
-    
-    extra_line_offset = 11
+    stdscr.addstr(10, 0, "Derived Parameters:", curses.A_UNDERLINE)
+    stdscr.addstr(11, 0, f"Temp: {gen_params['temp']} | Top-P: {gen_params['top_p']} | Min-P: {gen_params['min_p']} | Rep-Pen: {gen_params['rep_pen']}")
+
+    extra_line_offset = 12
     if gen_params.get("extra"):
         stdscr.addstr(extra_line_offset, 0, f"Extra: {gen_params['extra']}")
         extra_line_offset += 1

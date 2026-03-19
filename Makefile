@@ -23,31 +23,34 @@ else
 	CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON
 endif
 
-# Check if absolute /models exists, otherwise use local ./models
-BASE_MODELS_DIR := $(shell test -d /models && echo /models || echo ./models)
-
 LLAMA_PATH ?= ./llama.cpp
 VENV_DIR   ?= .venv
 
 # --- Path Discovery for HF CLI ---
-# 1. Check for modern huggingface-cli in the virtual environment
-ifneq ($(wildcard $(VENV_DIR)/bin/huggingface-cli),)
-	HF_CLI ?= $(VENV_DIR)/bin/huggingface-cli
-# 2. Check for the legacy 'hf' binary in the virtual environment
-else ifneq ($(wildcard $(VENV_DIR)/bin/hf),)
-	HF_CLI ?= $(VENV_DIR)/bin/hf
-# 3. Fallback to global system PATH
+# Look for the official 'hf' binary in the virtual environment
+ifneq ($(wildcard $(VENV_DIR)/bin/hf),)
+    HF_CLI ?= $(VENV_DIR)/bin/hf
+# Fallback to global system PATH if it's installed globally
 else
-	HF_CLI ?= huggingface-cli
+    HF_CLI ?= hf
 endif
 
 # Fallbacks in case config.mk hasn't been generated yet
 REPO        ?= unsloth/Qwen3.5-122B-A10B-GGUF
 QUANT       ?= Q4_K_M
 INCLUDE     ?= "*$(QUANT)*"
-LOCAL_DIR   ?= $(BASE_MODELS_DIR)/$(REPO)
+HOST_MODELS_DIR ?= ./models
 MODE        ?= non-thinking
 CTX_SIZE    ?= 16384
+
+# --- Path Routing Logic ---
+ifeq ($(IN_DOCKER),true)
+	BASE_MODELS_DIR = /app/models
+else
+	BASE_MODELS_DIR = $(HOST_MODELS_DIR)
+endif
+
+LOCAL_DIR = $(BASE_MODELS_DIR)/$(REPO)
 
 # Hardware Profile Fallbacks
 EXEC_MODE      ?= native
@@ -161,23 +164,15 @@ endif
 # 4. Native Execution Targets
 # ==========================================
 native-download:
-	@if [ ! -d "$(VENV_DIR)" ]; then \
+	@if [ "$(IN_DOCKER)" != "true" ] && [ ! -d "$(VENV_DIR)" ]; then \
 		echo "Virtual environment not found. Running setup first..."; \
 		$(MAKE) setup; \
 	fi
-	@echo "Determining Hugging Face CLI path..."
-	@if [ -f "$(VENV_DIR)/bin/huggingface-cli" ]; then \
-		CLI="$(VENV_DIR)/bin/huggingface-cli"; \
-	elif [ -f "$(VENV_DIR)/bin/hf" ]; then \
-		CLI="$(VENV_DIR)/bin/hf"; \
-	else \
-		CLI="huggingface-cli"; \
-	fi; \
-	echo "Downloading $(QUANT) weights from $(REPO) to $(LOCAL_DIR) using $$CLI..."; \
-	env HF_HUB_ENABLE_HF_TRANSFER=1 $$CLI download $(REPO) --include "$(INCLUDE)" --local-dir $(LOCAL_DIR); \
-	if [ "$(IS_VISION_MODEL)" = "true" ]; then \
+	@echo "Downloading $(QUANT) weights from $(REPO) to $(LOCAL_DIR) using $(HF_CLI)..."
+	env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "$(INCLUDE)" --local-dir $(LOCAL_DIR)
+	@if [ "$(IS_VISION_MODEL)" = "true" ]; then \
 		echo "Downloading mmproj-F16.gguf for vision model..." ; \
-		env HF_HUB_ENABLE_HF_TRANSFER=1 $$CLI download $(REPO) --include "mmproj-F16.gguf" --local-dir $(LOCAL_DIR) ; \
+		env HF_HUB_ENABLE_HF_TRANSFER=1 $(HF_CLI) download $(REPO) --include "mmproj-F16.gguf" --local-dir $(LOCAL_DIR) ; \
 	fi
 
 native-cli: check-model
@@ -210,7 +205,8 @@ native-bench: check-model
 docker-download: docker-build
 	@echo "Running Download in Docker..."
 	docker run -it --rm \
-		-v $(PWD)/models:/app/models \
+		-e IN_DOCKER=true \
+		-v $(HOST_MODELS_DIR):/app/models \
 		-v $(PWD)/config.mk:/app/config.mk \
 		-v $(PWD)/Makefile:/app/Makefile \
 		$(DOCKER_IMAGE_NAME) make native-download
@@ -224,25 +220,28 @@ docker-build:
 
 docker-cli: docker-build
 	@echo "Running CLI in Docker..."
-	docker run --runtime nvidia -it --rm \
-		-v $(PWD)/models:/app/models \
+	docker run --gpus all -it --rm \
+		-e IN_DOCKER=true \
+		-v $(HOST_MODELS_DIR):/app/models \
 		-v $(PWD)/config.mk:/app/config.mk \
 		-v $(PWD)/Makefile:/app/Makefile \
 		$(DOCKER_IMAGE_NAME) make native-cli
 
 docker-server: docker-build
 	@echo "Running Server in Docker on port $(DOCKER_PORT)..."
-	docker run --runtime nvidia -it --rm \
+	docker run --gpus all -it --rm \
 		-p $(DOCKER_PORT):8080 \
-		-v $(PWD)/models:/app/models \
+		-e IN_DOCKER=true \
+		-v $(HOST_MODELS_DIR):/app/models \
 		-v $(PWD)/config.mk:/app/config.mk \
 		-v $(PWD)/Makefile:/app/Makefile \
 		$(DOCKER_IMAGE_NAME) make native-server
 
 docker-bench: docker-build
 	@echo "Running Benchmarks in Docker..."
-	docker run --runtime nvidia -it --rm \
-		-v $(PWD)/models:/app/models \
+	docker run --gpus all -it --rm \
+		-e IN_DOCKER=true \
+		-v $(HOST_MODELS_DIR):/app/models \
 		-v $(PWD)/config.mk:/app/config.mk \
 		-v $(PWD)/Makefile:/app/Makefile \
 		$(DOCKER_IMAGE_NAME) make native-bench
