@@ -11,16 +11,28 @@ else
 	SUDO := sudo
 endif
 
-# Detect OS
+# Detect OS and GPU Backend
 UNAME_S := $(shell uname -s)
+
 ifeq ($(UNAME_S),Darwin)
 	# macOS (Apple Silicon/Metal) settings
+	GPU_BACKEND = metal
 	SETUP_CMD   = brew update && brew install cmake curl python3
 	CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=ON
 else
-	# Linux (Debian/CUDA) settings
-	SETUP_CMD   = $(SUDO) apt-get update && $(SUDO) apt-get install pciutils build-essential git cmake curl libcurl4-openssl-dev python3 python3-venv -y
-	CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON
+	# Linux: Check for AMD ROCm vs NVIDIA CUDA
+	ifneq ($(wildcard /opt/rocm),)
+		# AMD ROCm Detected
+		GPU_BACKEND = rocm
+		SETUP_CMD   = $(SUDO) apt-get update && $(SUDO) apt-get install pciutils build-essential git cmake curl libcurl4-openssl-dev python3 python3-venv -y
+		# Use the modern GGML_HIP=ON flag
+		CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_HIP=ON -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++
+	else
+		# NVIDIA CUDA (Default Linux)
+		GPU_BACKEND = cuda
+		SETUP_CMD   = $(SUDO) apt-get update && $(SUDO) apt-get install pciutils build-essential git cmake curl libcurl4-openssl-dev python3 python3-venv -y
+		CMAKE_FLAGS = -DBUILD_SHARED_LIBS=OFF -DGGML_CUDA=ON
+	endif
 endif
 
 LLAMA_PATH ?= ./llama.cpp

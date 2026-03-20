@@ -38,6 +38,13 @@ MACHINE_PROFILES = {
         "tensor_split": "0",
         "exec_mode": "native",
         "dockerfile": "none"
+    },
+    "AMD Radeon (ROCm)": {
+        "gpu_layers": 99,
+        "split_mode": "none",
+        "tensor_split": "0",
+        "exec_mode": "native",
+        "dockerfile": ""
     }
 }
 
